@@ -223,19 +223,37 @@ export async function createProduct(productData: Partial<Product>): Promise<{ su
     if (newProduct.deliveryInfo) payload.delivery_info = newProduct.deliveryInfo;
     if (newProduct.stockQuantity) payload.stock_quantity = newProduct.stockQuantity;
 
-    let { error } = await supabase.from('products').insert([payload]).select();
+    let attempts = 0;
+    while (attempts < 5) {
+      let { error } = await supabase.from('products').insert([payload]).select();
+      if (!error) break;
 
-    // Fallback: If Supabase schema cache hasn't loaded new columns (PGRST204), strip missing optional keys & retry
-    if (error && (error.code === 'PGRST204' || error.message.includes('Could not find'))) {
-      console.warn('PGRST204 schema cache warning detected, retrying without optional columns:', error.message);
-      delete payload.badge_text;
-      delete payload.in_stock;
-      delete payload.original_price;
-      delete payload.stock_quantity;
-      await supabase.from('products').insert([payload]).select();
+      if (error && (error.code === 'PGRST204' || error.message.includes('Could not find') || error.message.includes('column'))) {
+        console.warn(`PGRST204 attempt ${attempts + 1} for createProduct stripping missing columns:`, error.message);
+        const match = error.message.match(/Could not find the '([^']+)' column/i) || error.message.match(/Could not find the "([^"]+)" column/i);
+        if (match && match[1]) {
+          delete payload[match[1]];
+        }
+        delete payload.delivery_info;
+        delete payload.fabric_care;
+        delete payload.material;
+        delete payload.occasion;
+        delete payload.badge_text;
+        delete payload.in_stock;
+        delete payload.original_price;
+        delete payload.stock_quantity;
+        delete payload.secondary_image;
+        delete payload.images;
+        delete payload.sizes;
+        delete payload.colors;
+        attempts++;
+      } else {
+        console.warn('Non-PGRST204 insert warning:', error);
+        break;
+      }
     }
   } catch (err: any) {
-    console.warn('Supabase createProduct caught error:', err);
+    console.warn('Supabase createProduct caught exception:', err);
   }
 
   inMemoryProducts.unshift(newProduct);
@@ -268,18 +286,37 @@ export async function updateProduct(id: string, productData: Partial<Product>): 
     if (productData.inStock !== undefined) updatePayload.in_stock = productData.inStock;
     if (productData.stockQuantity !== undefined) updatePayload.stock_quantity = productData.stockQuantity;
 
-    let { error } = await supabase.from('products').update(updatePayload).eq('id', id);
+    let attempts = 0;
+    while (attempts < 5) {
+      let { error } = await supabase.from('products').update(updatePayload).eq('id', id);
+      if (!error) break;
 
-    if (error && (error.code === 'PGRST204' || error.message.includes('Could not find'))) {
-      console.warn('PGRST204 schema cache warning detected on update, retrying without optional columns:', error.message);
-      delete updatePayload.badge_text;
-      delete updatePayload.in_stock;
-      delete updatePayload.original_price;
-      delete updatePayload.stock_quantity;
-      await supabase.from('products').update(updatePayload).eq('id', id);
+      if (error && (error.code === 'PGRST204' || error.message.includes('Could not find') || error.message.includes('column'))) {
+        console.warn(`PGRST204 attempt ${attempts + 1} for updateProduct stripping missing columns:`, error.message);
+        const match = error.message.match(/Could not find the '([^']+)' column/i) || error.message.match(/Could not find the "([^"]+)" column/i);
+        if (match && match[1]) {
+          delete updatePayload[match[1]];
+        }
+        delete updatePayload.delivery_info;
+        delete updatePayload.fabric_care;
+        delete updatePayload.material;
+        delete updatePayload.occasion;
+        delete updatePayload.badge_text;
+        delete updatePayload.in_stock;
+        delete updatePayload.original_price;
+        delete updatePayload.stock_quantity;
+        delete updatePayload.secondary_image;
+        delete updatePayload.images;
+        delete updatePayload.sizes;
+        delete updatePayload.colors;
+        attempts++;
+      } else {
+        console.warn('Non-PGRST204 update warning:', error);
+        break;
+      }
     }
   } catch (err) {
-    console.warn('Supabase updateProduct caught error:', err);
+    console.warn('Supabase updateProduct caught exception:', err);
   }
 
   inMemoryProducts = inMemoryProducts.map((p) => (p.id === id ? { ...p, ...productData } : p));

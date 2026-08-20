@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Product, Category, OrderInquiry, SiteSettings, ColorOption } from '../../types';
 import {
   createProduct,
@@ -26,7 +27,6 @@ import {
   Layers,
   Send,
   Sliders,
-  Database,
   Plus,
   Trash2,
   Edit,
@@ -62,6 +62,7 @@ interface Props {
   initialCategories: Category[];
   initialOrders: OrderInquiry[];
   initialSettings?: SiteSettings;
+  initialTab?: 'overview' | 'products' | 'categories' | 'orders' | 'site';
 }
 
 export default function AdminClient({
@@ -69,6 +70,7 @@ export default function AdminClient({
   initialCategories,
   initialOrders,
   initialSettings,
+  initialTab = 'overview',
 }: Props) {
   const router = useRouter();
   const { siteSettings, updateSiteSettingsState, refreshSiteData } = useStore();
@@ -84,7 +86,7 @@ export default function AdminClient({
   const [orders, setOrders] = useState<OrderInquiry[]>(initialOrders);
 
   // Sidebar & Navigation states
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'categories' | 'orders' | 'site' | 'database'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'categories' | 'orders' | 'site'>(initialTab);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
@@ -110,7 +112,6 @@ export default function AdminClient({
   const [pCategory, setPCategory] = useState('dresses');
   const [pPrice, setPPrice] = useState('3500');
   const [pOrigPrice, setPOrigPrice] = useState('4200');
-  const [pBadgeText, setPBadgeText] = useState('SPECIAL OFFER');
   const [pDesc, setPDesc] = useState('');
   const [pMaterial, setPMaterial] = useState('Ethiopian Cotton');
   const [pOccasion, setPOccasion] = useState('Casual');
@@ -206,14 +207,13 @@ export default function AdminClient({
     setPCategory(categories[0]?.slug || 'dresses');
     setPPrice('2500');
     setPOrigPrice(''); // Empty by default (Optional)
-    setPBadgeText('');
     setPDesc('Handcrafted authentic Ethiopian fashion garment.');
     setPMaterial('Ethiopian Fine Cotton');
     setPOccasion('Casual & Ceremonial');
     setPFabricCare('Traditional handwoven cotton. Hand wash cold or dry clean recommended.');
     setPDeliveryInfo('Fast delivery available in Addis Ababa within 24-48 hours.');
     setPStock('15');
-    setPImage('/images/hero.jpg');
+    setPImage('');
     setPSecondaryImage('');
     setPGalleryImages([]);
     setPColors([
@@ -233,7 +233,6 @@ export default function AdminClient({
     setPCategory(prod.category);
     setPPrice(prod.price.toString());
     setPOrigPrice(prod.originalPrice ? prod.originalPrice.toString() : '');
-    setPBadgeText(prod.badgeText || (prod.isSale ? 'SPECIAL OFFER' : ''));
     setPDesc(prod.description);
     setPMaterial(prod.material || 'Cotton');
     setPOccasion(prod.occasion || 'Casual');
@@ -321,14 +320,13 @@ export default function AdminClient({
       category: pCategory,
       price: Number(pPrice),
       originalPrice: hasOrigPrice ? Number(pOrigPrice) : undefined,
-      badgeText: pBadgeText || undefined,
       description: pDesc || 'Handcrafted Habesha garment.',
       material: pMaterial,
       occasion: pOccasion,
       fabricCare: pFabricCare,
       deliveryInfo: pDeliveryInfo,
       stockQuantity: Number(pStock || 15),
-      image: pImage || '/images/hero.jpg',
+      image: pImage || '',
       secondaryImage: pSecondaryImage || undefined,
       images: pGalleryImages.length > 0 ? pGalleryImages : [pImage].filter(Boolean),
       isNew: pIsNew,
@@ -339,10 +337,16 @@ export default function AdminClient({
     };
 
     if (editingProductId) {
-      await updateProduct(editingProductId, prodData);
-      showToast(`Updated "${pName}"`);
+      const result = await updateProduct(editingProductId, prodData);
+      if (result.data) {
+        setProducts((prev) => prev.map((p) => (p.id === editingProductId ? { ...p, ...result.data } : p)));
+      }
+      showToast(`Updated product "${pName}"`);
     } else {
-      await createProduct(prodData);
+      const result = await createProduct(prodData);
+      if (result.data) {
+        setProducts((prev) => [result.data!, ...prev]);
+      }
       showToast(`Created product "${pName}"`);
     }
 
@@ -459,8 +463,17 @@ export default function AdminClient({
     { id: 'categories', label: 'Categories', icon: Layers, badge: categories.length },
     { id: 'orders', label: 'Telegram Orders', icon: Send, badge: pendingOrdersCount ? `${pendingOrdersCount} pending` : orders.length },
     { id: 'site', label: 'Site Content & Hero', icon: Sliders },
-    { id: 'database', label: 'Database Setup & SQL', icon: Database },
   ];
+
+  const handleTabClick = (tabId: 'overview' | 'products' | 'categories' | 'orders' | 'site') => {
+    setActiveTab(tabId);
+    setMobileSidebarOpen(false);
+    if (tabId === 'overview') {
+      router.push('/admin');
+    } else {
+      router.push(`/admin/${tabId}`);
+    }
+  };
 
   if (authChecking) {
     return (
@@ -497,14 +510,16 @@ export default function AdminClient({
           >
             {mobileSidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
-          <div>
-            <h2 className="font-serif text-lg font-bold tracking-wider text-white uppercase">
-              Hiwi Fashion
-            </h2>
-            <span className="text-[9px] text-[#C5A880] uppercase tracking-widest block -mt-1">
-              Admin Console
-            </span>
-          </div>
+          <Link href="/" className="flex items-center gap-1.5 hover:opacity-80" title="Visit Storefront Website">
+            <div>
+              <h2 className="font-serif text-lg font-bold tracking-wider text-white uppercase flex items-center gap-1">
+                Hiwi Fashion <ExternalLink className="w-3.5 h-3.5 text-[#C5A880]" />
+              </h2>
+              <span className="text-[9px] text-[#C5A880] uppercase tracking-widest block -mt-1">
+                Admin Console
+              </span>
+            </div>
+          </Link>
         </div>
 
         <button
@@ -524,17 +539,17 @@ export default function AdminClient({
       >
         <div className="space-y-8">
           
-          {/* Brand Header */}
+          {/* Brand Header (Clickable Link to Public Storefront) */}
           <div className="flex items-center justify-between pb-6 border-b border-zinc-800">
-            <div>
-              <span className="text-[9px] font-bold uppercase tracking-[0.3em] text-[#C5A880] block">
+            <Link href="/" className="group cursor-pointer block" title="Visit Storefront Website">
+              <span className="text-[9px] font-bold uppercase tracking-[0.3em] text-[#C5A880] group-hover:underline block">
                 HABESHA ATELIER
               </span>
-              <h1 className="font-serif text-2xl font-bold text-white tracking-wider uppercase">
-                Hiwi Fashion
+              <h1 className="font-serif text-2xl font-bold text-white tracking-wider uppercase flex items-center gap-2 group-hover:text-[#C5A880] transition-colors">
+                Hiwi Fashion <ExternalLink className="w-4 h-4 text-[#C5A880]" />
               </h1>
               <p className="text-[11px] text-gray-400 mt-0.5">Admin Management Console</p>
-            </div>
+            </Link>
             <button
               onClick={() => setMobileSidebarOpen(false)}
               className="lg:hidden text-gray-400 hover:text-white"
@@ -552,7 +567,7 @@ export default function AdminClient({
               <div className="truncate">
                 <span className="text-xs font-bold text-white block truncate">{authEmail}</span>
                 <span className="text-[10px] text-green-400 font-semibold flex items-center gap-1">
-                  <CheckCircle className="w-2.5 h-2.5" /> Supabase Session
+                  <CheckCircle className="w-2.5 h-2.5" /> Admin
                 </span>
               </div>
             </div>
@@ -566,10 +581,7 @@ export default function AdminClient({
               return (
                 <button
                   key={item.id}
-                  onClick={() => {
-                    setActiveTab(item.id as any);
-                    setMobileSidebarOpen(false);
-                  }}
+                  onClick={() => handleTabClick(item.id as any)}
                   className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-xs font-bold transition-all ${
                     isActive
                       ? 'bg-[#C5A880] text-black shadow-lg font-extrabold'
@@ -598,14 +610,13 @@ export default function AdminClient({
 
         {/* Sidebar Footer Actions */}
         <div className="pt-6 border-t border-zinc-800 space-y-3">
-          <button
-            onClick={refreshAllData}
-            disabled={loading}
-            className="w-full py-2.5 px-4 bg-zinc-900 hover:bg-zinc-800 text-gray-300 text-xs font-bold rounded-xl flex items-center justify-center gap-2 border border-zinc-800"
+          <Link
+            href="/"
+            className="w-full py-2.5 px-4 bg-zinc-900 hover:bg-[#C5A880] hover:text-black text-gray-300 text-xs font-bold rounded-xl flex items-center justify-center gap-2 border border-zinc-800 transition-colors"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>Sync Supabase Data</span>
-          </button>
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>Go to Storefront Website</span>
+          </Link>
 
           <button
             onClick={handleLogout}
@@ -1235,30 +1246,7 @@ export default function AdminClient({
           </div>
         )}
 
-        {/* DATABASE SETUP TAB */}
-        {activeTab === 'database' && (
-          <div className="bg-white p-8 rounded-3xl border border-[#E7E2DA] space-y-6 shadow-xs animate-in fade-in duration-300">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <Database className="w-6 h-6 text-[#C5A880]" />
-                <div>
-                  <h3 className="text-lg font-bold text-[#1A1A1A]">Supabase SQL Schema Migration</h3>
-                  <p className="text-xs text-gray-500">
-                    Project URL: <strong>https://xafspnuqhcpznrihtmvq.supabase.co</strong>
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-[#FAF8F5] border border-[#E7E2DA] text-xs text-gray-700 space-y-2">
-              <p className="font-bold text-[#1A1A1A]">Quick Setup Steps:</p>
-              <ol className="list-decimal pl-4 space-y-1">
-                <li>Open your Supabase SQL Editor: <a href="https://xafspnuqhcpznrihtmvq.supabase.co" target="_blank" rel="noreferrer" className="text-[#0088cc] underline font-bold">Open Supabase Dashboard</a></li>
-                <li>Execute SQL table migrations.</li>
-              </ol>
-            </div>
-          </div>
-        )}        {/* COMPREHENSIVE ADD & EDIT PRODUCT FORM MODAL */}
+        {/* COMPREHENSIVE ADD & EDIT PRODUCT FORM MODAL */}
         {showProductModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-6 overflow-y-auto">
             <div className="w-full max-w-3xl bg-white rounded-3xl shadow-2xl p-5 sm:p-8 border border-[#E7E2DA] space-y-6 my-auto max-h-[85vh] sm:max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-200">
@@ -1355,19 +1343,6 @@ export default function AdminClient({
                         <option value="false">● Out of Stock</option>
                       </select>
                     </div>
-
-                    <div>
-                      <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                        Badge Banner Text
-                      </label>
-                      <input
-                        type="text"
-                        value={pBadgeText}
-                        onChange={(e) => setPBadgeText(e.target.value)}
-                        placeholder="e.g. SPECIAL OFFER"
-                        className="w-full px-3.5 py-2.5 border rounded-xl font-bold text-[#C5A880] uppercase bg-white focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
-                      />
-                    </div>
                   </div>
                 </div>
 
@@ -1377,7 +1352,11 @@ export default function AdminClient({
                     <label className="font-bold text-xs text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
                       <ImageIcon className="w-4 h-4 text-[#C5A880]" /> 2. Primary Cover & Gallery Uploads
                     </label>
-                    {uploadingImg && <span className="text-xs text-[#0088cc] font-bold animate-pulse">Uploading image(s)...</span>}
+                    {uploadingImg && (
+                      <span className="text-xs bg-[#C5A880] text-black font-extrabold px-3 py-1 rounded-full flex items-center gap-1.5 animate-pulse shadow-xs">
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Uploading image to Storage...
+                      </span>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1386,9 +1365,16 @@ export default function AdminClient({
                       <input
                         type="file"
                         accept="image/*"
+                        disabled={uploadingImg}
                         onChange={(e) => handleImageFileChange(e, 'cover')}
-                        className="w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#1A1A1A] file:text-white hover:file:bg-[#C5A880] cursor-pointer"
+                        className="w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#1A1A1A] file:text-white hover:file:bg-[#C5A880] cursor-pointer disabled:opacity-50"
                       />
+                      {uploadingImg && (
+                        <div className="p-2 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-amber-800 text-[11px] font-bold">
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#C5A880]" />
+                          <span>Uploading image file...</span>
+                        </div>
+                      )}
                       <input
                         type="text"
                         value={pImage}
@@ -1405,9 +1391,16 @@ export default function AdminClient({
                         type="file"
                         accept="image/*"
                         multiple
+                        disabled={uploadingImg}
                         onChange={(e) => handleImageFileChange(e, 'gallery')}
-                        className="w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#1A1A1A] file:text-white hover:file:bg-[#C5A880] cursor-pointer"
+                        className="w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#1A1A1A] file:text-white hover:file:bg-[#C5A880] cursor-pointer disabled:opacity-50"
                       />
+                      {uploadingImg && (
+                        <div className="p-2 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-amber-800 text-[11px] font-bold">
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#C5A880]" />
+                          <span>Uploading gallery images...</span>
+                        </div>
+                      )}
                       <p className="text-[10px] text-gray-400 italic">Select multiple images at once to build product gallery.</p>
                       
                       {/* Gallery Thumbnails List */}
@@ -1657,13 +1650,27 @@ export default function AdminClient({
 
                 {/* Image Upload */}
                 <div className="space-y-1.5 p-3 bg-[#FAF8F5] rounded-xl border">
-                  <label className="font-bold text-gray-900 block">Cover Image File / URL</label>
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-gray-900 block">Cover Image File / URL</label>
+                    {uploadingImg && (
+                      <span className="text-[10px] bg-[#C5A880] text-black font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
+                        <RefreshCw className="w-3 h-3 animate-spin" /> Uploading...
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="file"
                     accept="image/*"
+                    disabled={uploadingImg}
                     onChange={(e) => handleImageFileChange(e, 'category')}
-                    className="w-full text-xs text-gray-500 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#1A1A1A] file:text-white"
+                    className="w-full text-xs text-gray-500 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#1A1A1A] file:text-white disabled:opacity-50"
                   />
+                  {uploadingImg && (
+                    <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2 text-amber-800 text-[10px] font-bold">
+                      <RefreshCw className="w-3 h-3 animate-spin text-[#C5A880]" />
+                      <span>Uploading category image to Storage...</span>
+                    </div>
+                  )}
                   <input
                     type="text"
                     value={catImage}
