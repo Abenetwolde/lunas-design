@@ -69,25 +69,26 @@ export default function ProductDetailClient({ product: initialProduct, relatedPr
     fetchRevs();
   }, [product.id]);
 
-  // Formatted Telegram Message in ETB
-  const formattedMessage = `🛍️ *PRODUCT ORDER INQUIRY — HIWI FASHION*
+  const productUrl = `${baseUrl}/product/${product.slug || product.id}`;
+
+  // Formatted Telegram Message in ETB (Clean No Emoji Clutter)
+  const formattedMessage = `HIWI FASHION — PRODUCT INQUIRY
 
 Hello! I am interested in purchasing this product:
 
-📌 *Product:* ${product.name}
-🏷️ *Category:* ${product.category.toUpperCase()}
-💰 *Price:* ETB ${product.price.toLocaleString()}
-🎨 *Color:* ${selectedColor.name}
-📐 *Size:* ${selectedSize}
-🔢 *Quantity:* ${quantity}
-💵 *TOTAL AMOUNT:* ETB ${totalAmount.toLocaleString()}
+Product: ${product.name}
+Category: ${product.category.toUpperCase()}
+Price: ETB ${product.price.toLocaleString('en-US')}
+Color: ${selectedColor.name}
+Size: ${selectedSize}
+Quantity: ${quantity}
+Total Amount: ETB ${totalAmount.toLocaleString('en-US')}
 
-🖼️ *Product Image URL:*
-${fullImageUrl}
+Product Link: ${productUrl}
 
-${customerName ? `👤 *Customer Name:* ${customerName}\n` : ''}${
-    customerNote ? `💬 *Delivery Address/Note:* ${customerNote}\n` : ''
-}Please let me know if this item is in stock and send payment options. Thank you!`;
+${customerName ? `Customer Name: ${customerName}\n` : ''}${
+    customerNote ? `Delivery Address/Note: ${customerNote}\n` : ''
+}Please confirm stock availability and payment options. Thank you!`;
 
   const handleOrderTelegram = async () => {
     if (!isInStock) return;
@@ -343,35 +344,35 @@ ${customerName ? `👤 *Customer Name:* ${customerName}\n` : ''}${
               </div>
             </div>
 
-            {/* DIRECT TELEGRAM ORDER BOX */}
-            <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-slate-900 to-black text-white space-y-4 border border-slate-800 shadow-xl">
+            {/* DIRECT TELEGRAM ORDER BOX - SITE BASE COLOR SCHEME */}
+            <div className="p-5 sm:p-6 rounded-2xl bg-[#FAF8F5] text-[#1A1A1A] space-y-4 border border-[#E7E2DA]">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-[#0088cc] flex items-center justify-center text-white">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-[#0088cc] flex items-center justify-center text-white shadow-xs">
                     <Send className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-white">Order via Telegram Inbox</h4>
-                    <p className="text-[11px] text-gray-400">Direct message with auto image payload</p>
+                    <h4 className="text-sm font-bold text-[#1A1A1A]">Order via Telegram Inbox</h4>
+                    <p className="text-[11px] text-gray-500">Direct seller message</p>
                   </div>
                 </div>
-                <span className="text-xs font-bold text-[#C5A880]">@{telegramUsername}</span>
+                <span className="text-xs font-bold text-[#0088cc]">@{telegramUsername}</span>
               </div>
 
               {/* Message snippet preview */}
-              <div className="p-3 bg-slate-800/80 rounded-xl font-mono text-[11px] text-gray-300 max-h-32 overflow-y-auto whitespace-pre-wrap border border-slate-700">
+              <div className="p-3.5 bg-white rounded-xl font-mono text-[11px] text-gray-800 max-h-32 overflow-y-auto whitespace-pre-wrap border border-[#E7E2DA]">
                 {formattedMessage}
               </div>
 
               {/* CTA Buttons */}
-              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <div className="flex flex-col sm:flex-row gap-3 pt-1">
                 <button
                   onClick={handleOrderTelegram}
                   disabled={!isInStock}
-                  className={`flex-1 py-3.5 px-4 text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 ${
+                  className={`flex-1 py-3.5 px-4 text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center justify-center gap-2 ${
                     isInStock
                       ? 'bg-[#0088cc] hover:bg-[#0077b3] text-white'
-                      : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                   }`}
                 >
                   <Send className="w-4 h-4" />
@@ -383,8 +384,8 @@ ${customerName ? `👤 *Customer Name:* ${customerName}\n` : ''}${
                   disabled={!isInStock}
                   className={`py-3.5 px-5 text-xs font-bold uppercase tracking-wider rounded-xl transition-colors flex items-center justify-center gap-2 ${
                     isInStock
-                      ? 'bg-white text-black hover:bg-[#C5A880]'
-                      : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                      ? 'bg-[#1A1A1A] text-white hover:bg-[#C5A880] hover:text-black'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                   }`}
                 >
                   <ShoppingBag className="w-4 h-4" />
