@@ -4,12 +4,7 @@ import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
 import { recordTelegramOrder } from '../lib/supabase';
 import { Product, ColorOption } from '../types';
-import {
-  Send,
-  X,
-  Copy,
-  Check,
-} from 'lucide-react';
+import { Send, X, Copy, Check } from 'lucide-react';
 
 export const TelegramOrderModal: React.FC = () => {
   const {
@@ -27,7 +22,6 @@ export const TelegramOrderModal: React.FC = () => {
   const [selectedSize, setSelectedSize] = useState<string>('');
   const [quantity, setQuantity] = useState<number>(1);
   const [copied, setCopied] = useState(false);
-  const [orderSent, setOrderSent] = useState(false);
 
   if (!isTelegramModalOpen || !telegramModalProduct) return null;
 
@@ -38,29 +32,26 @@ export const TelegramOrderModal: React.FC = () => {
   const totalAmount = unitPrice * quantity;
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-  const fullImageUrl = product.image.startsWith('http')
-    ? product.image
-    : `${baseUrl}${product.image}`;
+  const productUrl = `${baseUrl}/product/${product.slug || product.id}`;
 
-  // Formatted Telegram Order Payload (ETB)
-  const formattedMessage = `🛍️ *PRODUCT ORDER INQUIRY — HIWI FASHION*
+  // Clean Telegram Order Message Payload (No Emoji Clutter)
+  const formattedMessage = `HIWI FASHION — PRODUCT INQUIRY
 
-Hello! I would like to order the following item:
+Hello! I would like to order:
 
-📌 *Product:* ${product.name}
-🏷️ *Category:* ${product.category.toUpperCase()}
-💰 *Unit Price:* ETB ${unitPrice.toLocaleString('en-US')}
-🎨 *Color:* ${activeColor}
-📐 *Size:* ${activeSize}
-🔢 *Quantity:* ${quantity}
-💵 *TOTAL AMOUNT:* ETB ${totalAmount.toLocaleString('en-US')}
+Product: ${product.name}
+Category: ${product.category.toUpperCase()}
+Price: ETB ${unitPrice.toLocaleString('en-US')}
+Color: ${activeColor}
+Size: ${activeSize}
+Quantity: ${quantity}
+Total Amount: ETB ${totalAmount.toLocaleString('en-US')}
 
-🖼️ *Product Image URL:*
-${fullImageUrl}
+Product Link: ${productUrl}
 
-${customerName ? `👤 *Customer Name:* ${customerName}\n` : ''}${
-    customerNote ? `💬 *Delivery Note:* ${customerNote}\n` : ''
-}Please confirm item stock and send payment options. Thank you!`;
+${customerName ? `Customer Name: ${customerName}\n` : ''}${
+    customerNote ? `Delivery Note: ${customerNote}\n` : ''
+}Please confirm stock availability. Thank you!`;
 
   const handleCopyText = () => {
     navigator.clipboard.writeText(formattedMessage);
@@ -87,67 +78,75 @@ ${customerName ? `👤 *Customer Name:* ${customerName}\n` : ''}${
       ],
     });
 
-    setOrderSent(true);
     const tgUrl = `https://t.me/${telegramUsername}?text=${encodeURIComponent(formattedMessage)}`;
     window.open(tgUrl, '_blank');
   };
 
+  const handleShareDeepLink = () => {
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(productUrl)}&text=${encodeURIComponent(formattedMessage)}`;
+    window.open(shareUrl, '_blank');
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 overflow-y-auto">
-      <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-[#E7E2DA] animate-in zoom-in-95 duration-200 my-8">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/30 backdrop-blur-md p-4 overflow-y-auto">
+      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-200 my-8">
         
-        {/* Header */}
-        <div className="bg-[#1A1A1A] text-white p-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[#0088cc] flex items-center justify-center text-white font-bold shadow-md">
-              <Send className="w-5 h-5" />
+        {/* Header - Light Clean Vibe */}
+        <div className="bg-gradient-to-r from-slate-50 via-sky-50/30 to-white border-b border-slate-200 p-5 flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 text-[10px] font-mono font-semibold uppercase tracking-wider border border-emerald-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Live Direct Order
+              </span>
             </div>
-            <div>
-              <h3 className="text-base font-bold tracking-wide flex items-center gap-2">
-                Order via Telegram Inbox
-              </h3>
-              <p className="text-xs text-gray-300">Target Seller: @{telegramUsername}</p>
-            </div>
+            <h3 className="text-base font-bold text-slate-900 tracking-tight">
+              Order via Telegram Inbox
+            </h3>
+            <p className="text-xs text-slate-500 font-mono">
+              Target handle: <span className="font-semibold text-sky-600">@{telegramUsername}</span>
+            </p>
           </div>
+
           <button
             onClick={closeTelegramModal}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-gray-300 hover:text-white transition-colors"
+            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 flex items-center justify-center transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+        <div className="p-5 space-y-5 max-h-[70vh] overflow-y-auto text-slate-800">
           
-          {/* Product Summary Card */}
-          <div className="flex gap-4 p-4 rounded-2xl bg-[#FAF8F5] border border-[#E7E2DA]">
+          {/* Product Summary Tech Card */}
+          <div className="flex gap-4 p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200">
             <img
               src={product.image}
               alt={product.name}
-              className="w-20 h-24 object-cover rounded-xl border border-[#E7E2DA]"
+              className="w-16 h-20 object-cover rounded-xl border border-slate-200 shadow-xs"
             />
-            <div className="flex-1 space-y-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#C5A880]">
+            <div className="flex-1 space-y-1">
+              <span className="text-[9px] font-mono font-semibold uppercase tracking-widest text-sky-600 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-100">
                 {product.category}
               </span>
-              <h4 className="text-sm font-bold text-[#1A1A1A]">{product.name}</h4>
-              <div className="text-xs font-bold text-[#1A1A1A]">
-                ETB {unitPrice.toLocaleString()} <span className="text-gray-400 font-normal">/ unit</span>
+              <h4 className="text-sm font-bold text-slate-900 leading-snug">{product.name}</h4>
+              <div className="text-xs font-semibold text-slate-900 font-mono">
+                ETB {unitPrice.toLocaleString('en-US')}
               </div>
             </div>
           </div>
 
-          {/* Color & Size Specs Selection */}
-          <div className="grid grid-cols-2 gap-4 text-xs">
+          {/* Specs Selection */}
+          <div className="grid grid-cols-2 gap-3 text-xs">
             <div>
-              <label className="font-bold text-[#1A1A1A] block mb-1.5 uppercase tracking-wider">
+              <label className="text-[10px] font-mono font-semibold text-slate-500 uppercase tracking-wider block mb-1">
                 Color Choice
               </label>
               <select
                 value={activeColor}
                 onChange={(e) => setSelectedColor(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-[#E7E2DA] rounded-xl font-medium focus:outline-none focus:ring-1 focus:ring-[#0088cc]"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:outline-none focus:ring-1 focus:ring-sky-500 text-xs"
               >
                 {product.colors.map((c: ColorOption) => (
                   <option key={c.name} value={c.name}>
@@ -158,13 +157,13 @@ ${customerName ? `👤 *Customer Name:* ${customerName}\n` : ''}${
             </div>
 
             <div>
-              <label className="font-bold text-[#1A1A1A] block mb-1.5 uppercase tracking-wider">
+              <label className="text-[10px] font-mono font-semibold text-slate-500 uppercase tracking-wider block mb-1">
                 Size Choice
               </label>
               <select
                 value={activeSize}
                 onChange={(e) => setSelectedSize(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-[#E7E2DA] rounded-xl font-medium focus:outline-none focus:ring-1 focus:ring-[#0088cc]"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:outline-none focus:ring-1 focus:ring-sky-500 text-xs"
               >
                 {product.sizes.map((sz: string) => (
                   <option key={sz} value={sz}>
@@ -176,68 +175,68 @@ ${customerName ? `👤 *Customer Name:* ${customerName}\n` : ''}${
           </div>
 
           {/* Quantity Selector */}
-          <div className="flex justify-between items-center text-xs pt-2 border-t border-[#E7E2DA]">
-            <span className="font-bold text-[#1A1A1A] uppercase tracking-wider">Quantity:</span>
-            <div className="flex items-center border border-[#E7E2DA] rounded-xl bg-[#FAF8F5] overflow-hidden">
+          <div className="flex justify-between items-center text-xs pt-1">
+            <span className="text-[10px] font-mono font-semibold text-slate-500 uppercase tracking-wider">Quantity</span>
+            <div className="flex items-center border border-slate-200 rounded-xl bg-slate-50 overflow-hidden">
               <button
                 onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                className="px-3 py-1 text-xs font-bold text-gray-600 hover:bg-gray-200"
+                className="px-3 py-1 text-xs font-bold text-slate-600 hover:bg-slate-200 transition-colors"
               >
                 -
               </button>
-              <span className="px-3 text-xs font-bold text-[#1A1A1A]">{quantity}</span>
+              <span className="px-3 text-xs font-mono font-bold text-slate-900">{quantity}</span>
               <button
                 onClick={() => setQuantity(quantity + 1)}
-                className="px-3 py-1 text-xs font-bold text-gray-600 hover:bg-gray-200"
+                className="px-3 py-1 text-xs font-bold text-slate-600 hover:bg-slate-200 transition-colors"
               >
                 +
               </button>
             </div>
           </div>
 
-          {/* Optional Customer Inputs */}
-          <div className="space-y-3 pt-2 border-t border-[#E7E2DA]">
+          {/* Customer Input Fields */}
+          <div className="space-y-2.5 pt-2 border-t border-slate-100">
             <div>
-              <label className="text-[11px] font-bold text-gray-700 uppercase tracking-wider block mb-1">
-                Your Name (Optional)
+              <label className="text-[10px] font-mono font-semibold text-slate-500 uppercase tracking-wider block mb-1">
+                Customer Name (Optional)
               </label>
               <input
                 type="text"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 placeholder="e.g. Almaz Bekele"
-                className="w-full px-3 py-2 text-xs border border-[#E7E2DA] rounded-xl focus:outline-none focus:ring-1 focus:ring-[#0088cc]"
+                className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500"
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-gray-700 uppercase tracking-wider block mb-1">
-                Delivery Address / Specific Note
+              <label className="text-[10px] font-mono font-semibold text-slate-500 uppercase tracking-wider block mb-1">
+                Delivery Address / Note
               </label>
               <input
                 type="text"
                 value={customerNote}
                 onChange={(e) => setCustomerNote(e.target.value)}
                 placeholder="e.g. Bole Subcity, Addis Ababa"
-                className="w-full px-3 py-2 text-xs border border-[#E7E2DA] rounded-xl focus:outline-none focus:ring-1 focus:ring-[#0088cc]"
+                className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500"
               />
             </div>
           </div>
 
-          {/* Generated Message Payload Box */}
-          <div className="space-y-2 pt-2 border-t border-[#E7E2DA]">
+          {/* Minimal Payload Preview Box */}
+          <div className="space-y-1.5 pt-2 border-t border-slate-100">
             <div className="flex justify-between items-center">
-              <span className="text-[11px] font-bold text-gray-700 uppercase tracking-wider">
-                Pre-Filled Telegram Message Payload
+              <span className="text-[10px] font-mono font-semibold text-slate-500 uppercase tracking-wider">
+                Telegram Payload Preview
               </span>
               <button
                 onClick={handleCopyText}
-                className="text-xs font-bold text-[#0088cc] hover:underline flex items-center gap-1"
+                className="text-[11px] font-mono font-semibold text-sky-600 hover:text-sky-700 hover:underline flex items-center gap-1"
               >
-                {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copied ? 'Copied!' : 'Copy Text'}</span>
+                {copied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                <span>{copied ? 'Copied' : 'Copy'}</span>
               </button>
             </div>
-            <div className="p-3 bg-slate-900 text-slate-100 rounded-xl font-mono text-[11px] whitespace-pre-wrap max-h-40 overflow-y-auto border border-slate-700">
+            <div className="p-3 bg-slate-50 text-slate-700 rounded-xl font-mono text-[10px] whitespace-pre-wrap max-h-36 overflow-y-auto border border-slate-200 leading-relaxed">
               {formattedMessage}
             </div>
           </div>
@@ -245,27 +244,26 @@ ${customerName ? `👤 *Customer Name:* ${customerName}\n` : ''}${
         </div>
 
         {/* Action Footer */}
-        <div className="bg-[#FAF8F5] border-t border-[#E7E2DA] p-5 space-y-3">
-          <div className="flex justify-between items-center text-sm font-bold text-[#1A1A1A]">
-            <span>Total Inquiry Amount:</span>
-            <span className="text-lg text-[#1A1A1A]">ETB {totalAmount.toLocaleString()}</span>
+        <div className="bg-slate-50 border-t border-slate-200 p-4 space-y-3">
+          <div className="flex justify-between items-center text-xs font-mono">
+            <span className="text-slate-500 uppercase tracking-wider">Total Payload Value:</span>
+            <span className="text-base font-bold text-slate-900">ETB {totalAmount.toLocaleString('en-US')}</span>
           </div>
 
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={handleCopyText}
-              className="px-4 py-3 rounded-xl border border-[#E7E2DA] bg-white text-gray-700 text-xs font-bold hover:bg-gray-50 flex items-center justify-center gap-1.5"
+              onClick={handleShareDeepLink}
+              className="py-2.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors shadow-xs"
             >
-              {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
-              <span>{copied ? 'Copied' : 'Copy'}</span>
+              Share Deep Link
             </button>
 
             <button
               onClick={handleOpenTelegram}
-              className="flex-1 py-3.5 px-4 bg-[#0088cc] hover:bg-[#0077b3] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-lg flex items-center justify-center gap-2"
+              className="py-2.5 px-4 bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
             >
-              <Send className="w-4 h-4" />
-              <span>Open Telegram Inbox (@{telegramUsername})</span>
+              <Send className="w-3.5 h-3.5" />
+              <span>Inbox @{telegramUsername}</span>
             </button>
           </div>
         </div>

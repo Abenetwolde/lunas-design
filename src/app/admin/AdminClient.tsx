@@ -612,10 +612,10 @@ export default function AdminClient({
           <div className="flex items-center justify-between pb-6 border-b border-zinc-800">
             <Link href="/" className="group cursor-pointer block" title="Visit Storefront Website">
               <span className="text-[9px] font-bold uppercase tracking-[0.3em] text-[#C5A880] group-hover:underline block">
-                HABESHA ATELIER
+                {siteSettings?.tagline}
               </span>
               <h1 className="font-serif text-2xl font-bold text-white tracking-wider uppercase flex items-center gap-2 group-hover:text-[#C5A880] transition-colors">
-                Hiwi Fashion <ExternalLink className="w-4 h-4 text-[#C5A880]" />
+               {siteSettings?.siteName} <ExternalLink className="w-4 h-4 text-[#C5A880]" />
               </h1>
               <p className="text-[11px] text-gray-400 mt-0.5">Admin Management Console</p>
             </Link>

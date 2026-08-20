@@ -159,6 +159,11 @@ VALUES ('hiwi-fashion-assets', 'hiwi-fashion-assets', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Storage Access Policies
+DROP POLICY IF EXISTS "Public Read Assets" ON storage.objects;
+DROP POLICY IF EXISTS "Public Insert Assets" ON storage.objects;
+DROP POLICY IF EXISTS "Public Update Assets" ON storage.objects;
+DROP POLICY IF EXISTS "Public Delete Assets" ON storage.objects;
+
 CREATE POLICY "Public Read Assets" ON storage.objects FOR SELECT USING (bucket_id = 'hiwi-fashion-assets');
 CREATE POLICY "Public Insert Assets" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'hiwi-fashion-assets');
 CREATE POLICY "Public Update Assets" ON storage.objects FOR UPDATE USING (bucket_id = 'hiwi-fashion-assets');
@@ -172,18 +177,29 @@ ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
+DROP POLICY IF EXISTS "Allow public read site_settings" ON public.site_settings;
+DROP POLICY IF EXISTS "Allow public write site_settings" ON public.site_settings;
 CREATE POLICY "Allow public read site_settings" ON public.site_settings FOR SELECT USING (true);
 CREATE POLICY "Allow public write site_settings" ON public.site_settings FOR ALL USING (true);
 
+DROP POLICY IF EXISTS "Allow public read categories" ON public.categories;
+DROP POLICY IF EXISTS "Allow public write categories" ON public.categories;
 CREATE POLICY "Allow public read categories" ON public.categories FOR SELECT USING (true);
 CREATE POLICY "Allow public write categories" ON public.categories FOR ALL USING (true);
 
+DROP POLICY IF EXISTS "Allow public read products" ON public.products;
+DROP POLICY IF EXISTS "Allow public write products" ON public.products;
 CREATE POLICY "Allow public read products" ON public.products FOR SELECT USING (true);
 CREATE POLICY "Allow public write products" ON public.products FOR ALL USING (true);
 
+DROP POLICY IF EXISTS "Allow public read reviews" ON public.reviews;
+DROP POLICY IF EXISTS "Allow public insert reviews" ON public.reviews;
 CREATE POLICY "Allow public read reviews" ON public.reviews FOR SELECT USING (true);
 CREATE POLICY "Allow public insert reviews" ON public.reviews FOR INSERT WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow public insert orders" ON public.orders;
+DROP POLICY IF EXISTS "Allow public read orders" ON public.orders;
+DROP POLICY IF EXISTS "Allow public update orders" ON public.orders;
 CREATE POLICY "Allow public insert orders" ON public.orders FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public read orders" ON public.orders FOR SELECT USING (true);
 CREATE POLICY "Allow public update orders" ON public.orders FOR UPDATE USING (true);
