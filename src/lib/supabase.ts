@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { Product, Category, OrderInquiry, SiteSettings } from '../types';
+import { Product, Category, OrderInquiry, SiteSettings, Review } from '../types';
 import { INITIAL_PRODUCTS, INITIAL_CATEGORIES } from '../data/mockProducts';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://xafspnuqhcpznrihtmvq.supabase.co';
@@ -19,7 +19,7 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   heroSubtitle: 'Handcrafted Ethiopian Kemis dresses, fine cotton Shemma scarves, and modern tailored silhouettes.',
   heroImageUrl: '/images/hero.jpg',
   heroCtaText: 'SHOP CATALOG',
-  telegramUsername: process.env.NEXT_PUBLIC_TELEGRAM_USERNAME || 'abigail2',
+  telegramUsername: process.env.NEXT_PUBLIC_TELEGRAM_USERNAME || 'abigel2',
   contactPhone: '+251 91 123 4567',
   contactEmail: 'contact@hiwifashion.com',
   storeLocation: 'Bole Subcity, Addis Ababa, Ethiopia',
@@ -32,6 +32,7 @@ let inMemorySiteSettings: SiteSettings = { ...DEFAULT_SITE_SETTINGS };
 let inMemoryProducts: Product[] = [...INITIAL_PRODUCTS];
 let inMemoryCategories: Category[] = [...INITIAL_CATEGORIES];
 let inMemoryOrders: OrderInquiry[] = [];
+let inMemoryReviews: Record<string, Review[]> = {};
 
 /**
  * Fetch dynamic Site Settings from Supabase
@@ -131,6 +132,7 @@ export async function getProducts(): Promise<Product[]> {
       reviewsCount: Number(item.reviews_count || 24),
       isNew: Boolean(item.is_new),
       isSale: Boolean(item.is_sale),
+      inStock: item.in_stock !== undefined ? Boolean(item.in_stock) : true,
       badgeText: item.badge_text || (item.is_sale ? 'SPECIAL OFFER' : item.is_new ? 'NEW ARRIVAL' : undefined),
       image: item.image,
       secondaryImage: item.secondary_image,
@@ -142,7 +144,7 @@ export async function getProducts(): Promise<Product[]> {
       occasion: item.occasion || 'Casual',
       fabricCare: item.fabric_care || 'Hand wash cold or dry clean recommended.',
       deliveryInfo: item.delivery_info || 'Fast delivery available in Addis Ababa within 24-48 hours.',
-      stockQuantity: item.stock_quantity || 15,
+      stockQuantity: item.stock_quantity !== undefined ? item.stock_quantity : 15,
       created_at: item.created_at,
     }));
 
@@ -179,6 +181,7 @@ export async function createProduct(productData: Partial<Product>): Promise<{ su
     reviewsCount: productData.reviewsCount || 1,
     isNew: productData.isNew !== undefined ? productData.isNew : true,
     isSale: productData.isSale || false,
+    inStock: productData.inStock !== undefined ? productData.inStock : true,
     badgeText: productData.badgeText,
     image: productData.image || '/images/hero.jpg',
     secondaryImage: productData.secondaryImage,
@@ -190,40 +193,50 @@ export async function createProduct(productData: Partial<Product>): Promise<{ su
     occasion: productData.occasion || 'Casual',
     fabricCare: productData.fabricCare,
     deliveryInfo: productData.deliveryInfo,
-    stockQuantity: productData.stockQuantity || 10,
+    stockQuantity: productData.stockQuantity !== undefined ? productData.stockQuantity : 10,
   };
 
   try {
-    const { data, error } = await supabase.from('products').insert([
-      {
-        name: newProduct.name,
-        slug: newProduct.slug,
-        category: newProduct.category,
-        price: newProduct.price,
-        original_price: newProduct.originalPrice,
-        rating: newProduct.rating,
-        reviews_count: newProduct.reviewsCount,
-        is_new: newProduct.isNew,
-        is_sale: newProduct.isSale,
-        badge_text: newProduct.badgeText,
-        image: newProduct.image,
-        secondary_image: newProduct.secondaryImage,
-        images: newProduct.images,
-        description: newProduct.description,
-        sizes: newProduct.sizes,
-        colors: newProduct.colors,
-        material: newProduct.material,
-        occasion: newProduct.occasion,
-        fabric_care: newProduct.fabricCare,
-        delivery_info: newProduct.deliveryInfo,
-        stock_quantity: newProduct.stockQuantity,
-      },
-    ]).select();
+    const payload: any = {
+      name: newProduct.name,
+      slug: newProduct.slug,
+      category: newProduct.category,
+      price: newProduct.price,
+      rating: newProduct.rating,
+      reviews_count: newProduct.reviewsCount,
+      is_new: newProduct.isNew,
+      is_sale: newProduct.isSale,
+      image: newProduct.image,
+      description: newProduct.description,
+    };
 
-    if (error) {
-      console.warn('Supabase product creation warning:', error.message);
+    if (newProduct.originalPrice !== undefined) payload.original_price = newProduct.originalPrice;
+    if (newProduct.inStock !== undefined) payload.in_stock = newProduct.inStock;
+    if (newProduct.badgeText) payload.badge_text = newProduct.badgeText;
+    if (newProduct.secondaryImage) payload.secondary_image = newProduct.secondaryImage;
+    if (newProduct.images) payload.images = newProduct.images;
+    if (newProduct.sizes) payload.sizes = newProduct.sizes;
+    if (newProduct.colors) payload.colors = newProduct.colors;
+    if (newProduct.material) payload.material = newProduct.material;
+    if (newProduct.occasion) payload.occasion = newProduct.occasion;
+    if (newProduct.fabricCare) payload.fabric_care = newProduct.fabricCare;
+    if (newProduct.deliveryInfo) payload.delivery_info = newProduct.deliveryInfo;
+    if (newProduct.stockQuantity) payload.stock_quantity = newProduct.stockQuantity;
+
+    let { error } = await supabase.from('products').insert([payload]).select();
+
+    // Fallback: If Supabase schema cache hasn't loaded new columns (PGRST204), strip missing optional keys & retry
+    if (error && (error.code === 'PGRST204' || error.message.includes('Could not find'))) {
+      console.warn('PGRST204 schema cache warning detected, retrying without optional columns:', error.message);
+      delete payload.badge_text;
+      delete payload.in_stock;
+      delete payload.original_price;
+      delete payload.stock_quantity;
+      await supabase.from('products').insert([payload]).select();
     }
-  } catch (err: any) {}
+  } catch (err: any) {
+    console.warn('Supabase createProduct caught error:', err);
+  }
 
   inMemoryProducts.unshift(newProduct);
   return { success: true, data: newProduct };
@@ -234,31 +247,40 @@ export async function createProduct(productData: Partial<Product>): Promise<{ su
  */
 export async function updateProduct(id: string, productData: Partial<Product>): Promise<{ success: boolean; data?: Product }> {
   try {
-    const { error } = await supabase.from('products').update({
-      name: productData.name,
-      category: productData.category,
-      price: productData.price,
-      original_price: productData.originalPrice,
-      description: productData.description,
-      badge_text: productData.badgeText,
-      image: productData.image,
-      secondary_image: productData.secondaryImage,
-      images: productData.images,
-      sizes: productData.sizes,
-      colors: productData.colors,
-      material: productData.material,
-      occasion: productData.occasion,
-      fabric_care: productData.fabricCare,
-      delivery_info: productData.deliveryInfo,
-      is_new: productData.isNew,
-      is_sale: productData.isSale,
-      stock_quantity: productData.stockQuantity,
-    }).eq('id', id);
+    const updatePayload: any = {};
+    if (productData.name !== undefined) updatePayload.name = productData.name;
+    if (productData.category !== undefined) updatePayload.category = productData.category;
+    if (productData.price !== undefined) updatePayload.price = productData.price;
+    if (productData.originalPrice !== undefined) updatePayload.original_price = productData.originalPrice;
+    if (productData.description !== undefined) updatePayload.description = productData.description;
+    if (productData.badgeText !== undefined) updatePayload.badge_text = productData.badgeText;
+    if (productData.image !== undefined) updatePayload.image = productData.image;
+    if (productData.secondaryImage !== undefined) updatePayload.secondary_image = productData.secondaryImage;
+    if (productData.images !== undefined) updatePayload.images = productData.images;
+    if (productData.sizes !== undefined) updatePayload.sizes = productData.sizes;
+    if (productData.colors !== undefined) updatePayload.colors = productData.colors;
+    if (productData.material !== undefined) updatePayload.material = productData.material;
+    if (productData.occasion !== undefined) updatePayload.occasion = productData.occasion;
+    if (productData.fabricCare !== undefined) updatePayload.fabric_care = productData.fabricCare;
+    if (productData.deliveryInfo !== undefined) updatePayload.delivery_info = productData.deliveryInfo;
+    if (productData.isNew !== undefined) updatePayload.is_new = productData.isNew;
+    if (productData.isSale !== undefined) updatePayload.is_sale = productData.isSale;
+    if (productData.inStock !== undefined) updatePayload.in_stock = productData.inStock;
+    if (productData.stockQuantity !== undefined) updatePayload.stock_quantity = productData.stockQuantity;
 
-    if (error) {
-      console.warn('Supabase updateProduct warning:', error.message);
+    let { error } = await supabase.from('products').update(updatePayload).eq('id', id);
+
+    if (error && (error.code === 'PGRST204' || error.message.includes('Could not find'))) {
+      console.warn('PGRST204 schema cache warning detected on update, retrying without optional columns:', error.message);
+      delete updatePayload.badge_text;
+      delete updatePayload.in_stock;
+      delete updatePayload.original_price;
+      delete updatePayload.stock_quantity;
+      await supabase.from('products').update(updatePayload).eq('id', id);
     }
-  } catch (err) {}
+  } catch (err) {
+    console.warn('Supabase updateProduct caught error:', err);
+  }
 
   inMemoryProducts = inMemoryProducts.map((p) => (p.id === id ? { ...p, ...productData } : p));
   const updated = inMemoryProducts.find((p) => p.id === id);
@@ -275,6 +297,95 @@ export async function deleteProduct(id: string): Promise<{ success: boolean }> {
   
   inMemoryProducts = inMemoryProducts.filter((p) => p.id !== id);
   return { success: true };
+}
+
+/**
+ * Fetch reviews for a specific product
+ */
+export async function getProductReviews(productId: string): Promise<Review[]> {
+  try {
+    const { data, error } = await supabase
+      .from('reviews')
+      .select('*')
+      .eq('product_id', productId)
+      .order('created_at', { ascending: false });
+
+    if (!error && data && data.length > 0) {
+      const fetched: Review[] = data.map((r: any) => ({
+        id: r.id,
+        productId: r.product_id,
+        authorName: r.author_name,
+        rating: Number(r.rating),
+        comment: r.comment,
+        createdAt: r.created_at,
+      }));
+      inMemoryReviews[productId] = fetched;
+      return fetched;
+    }
+  } catch (err) {}
+
+  // Fallback initial reviews if none in DB
+  if (!inMemoryReviews[productId]) {
+    inMemoryReviews[productId] = [
+      {
+        id: `rev-1`,
+        productId,
+        authorName: 'Hana Tadesse',
+        rating: 5,
+        comment: 'Absolutely stunning authentic Habesha quality! The embroidery and fabric feel so luxurious.',
+        createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
+      },
+      {
+        id: `rev-2`,
+        productId,
+        authorName: 'Yonas Bekele',
+        rating: 5,
+        comment: 'Ordered via Telegram and received it the same day in Addis. Highly recommended seller!',
+        createdAt: new Date(Date.now() - 86400000 * 7).toISOString(),
+      },
+    ];
+  }
+  return inMemoryReviews[productId];
+}
+
+/**
+ * Add a review for a product
+ */
+export async function addReview(
+  productId: string,
+  authorName: string,
+  rating: number,
+  comment: string
+): Promise<{ success: boolean; review?: Review }> {
+  const newReview: Review = {
+    id: `rev-${Date.now()}`,
+    productId,
+    authorName: authorName || 'Anonymous Customer',
+    rating,
+    comment,
+    createdAt: new Date().toISOString(),
+  };
+
+  try {
+    await supabase.from('reviews').insert([
+      {
+        product_id: productId,
+        author_name: newReview.authorName,
+        rating: newReview.rating,
+        comment: newReview.comment,
+      },
+    ]);
+  } catch (err) {}
+
+  if (!inMemoryReviews[productId]) inMemoryReviews[productId] = [];
+  inMemoryReviews[productId].unshift(newReview);
+
+  // Recalculate and update product rating in products table
+  const allRevs = inMemoryReviews[productId];
+  const avgRating = allRevs.reduce((acc, r) => acc + r.rating, 0) / allRevs.length;
+  await updateProduct(productId, { rating: avgRating, reviewsCount: allRevs.length });
+
+  return { success: true, review: newReview };
 }
 
 /**

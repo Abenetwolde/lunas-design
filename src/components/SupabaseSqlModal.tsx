@@ -11,12 +11,18 @@ export const SupabaseSqlModal: React.FC = () => {
   if (!isSqlModalOpen) return null;
 
   const sqlSchema = `-- ========================================================
--- LUMIÈRE FASHION SUPABASE DATABASE INITIALIZATION SCHEMA
+-- HIWI FASHION SUPABASE DATABASE MIGRATION SCHEMA (ETB)
 -- Paste this script into your Supabase SQL Editor:
 -- https://xafspnuqhcpznrihtmvq.supabase.co
 -- ========================================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Ensure missing columns are added if tables already exist
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS badge_text VARCHAR(100);
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS in_stock BOOLEAN DEFAULT true;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS original_price DECIMAL(10, 2);
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS images TEXT[] DEFAULT ARRAY[]::text[];
 
 CREATE TABLE IF NOT EXISTS public.categories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -39,13 +45,25 @@ CREATE TABLE IF NOT EXISTS public.products (
     reviews_count INT DEFAULT 24,
     is_new BOOLEAN DEFAULT false,
     is_sale BOOLEAN DEFAULT false,
+    in_stock BOOLEAN DEFAULT true,
+    badge_text VARCHAR(100),
     image TEXT NOT NULL,
     secondary_image TEXT,
+    images TEXT[] DEFAULT ARRAY[]::text[],
     description TEXT NOT NULL,
     sizes TEXT[] DEFAULT ARRAY['XS', 'S', 'M', 'L', 'XL'],
     colors JSONB DEFAULT '[]'::jsonb,
     material VARCHAR(100) DEFAULT 'Linen Blend',
     occasion VARCHAR(100) DEFAULT 'Casual',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.reviews (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    product_id VARCHAR(255) NOT NULL,
+    author_name VARCHAR(255) NOT NULL,
+    rating INT CHECK (rating >= 1 AND rating <= 5) NOT NULL,
+    comment TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
@@ -63,10 +81,15 @@ CREATE TABLE IF NOT EXISTS public.orders (
 
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow public read categories" ON public.categories FOR SELECT USING (true);
+CREATE POLICY "Allow public write categories" ON public.categories FOR ALL USING (true);
 CREATE POLICY "Allow public read products" ON public.products FOR SELECT USING (true);
+CREATE POLICY "Allow public write products" ON public.products FOR ALL USING (true);
+CREATE POLICY "Allow public read reviews" ON public.reviews FOR SELECT USING (true);
+CREATE POLICY "Allow public insert reviews" ON public.reviews FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public insert orders" ON public.orders FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public read orders" ON public.orders FOR SELECT USING (true);`;
 
@@ -100,7 +123,7 @@ CREATE POLICY "Allow public read orders" ON public.orders FOR SELECT USING (true
         </div>
 
         {/* Content */}
-        <div className="p-6 max-h-[75vh] overflow-y-auto space-y-4">
+        <div className="p-6 max-h-[75vh] overflow-y-auto no-scrollbar space-y-4">
           <div className="p-4 rounded-xl bg-[#FAF8F5] border border-[#E7E2DA] space-y-2 text-xs text-gray-700">
             <div className="flex items-center gap-2 font-bold text-[#1A1A1A]">
               <Server className="w-4 h-4 text-[#C5A880]" />
@@ -124,7 +147,7 @@ CREATE POLICY "Allow public read orders" ON public.orders FOR SELECT USING (true
                 <span>{copied ? 'Copied SQL!' : 'Copy SQL Script'}</span>
               </button>
             </div>
-            <div className="p-3 bg-slate-900 text-slate-100 rounded-xl font-mono text-[11px] whitespace-pre-wrap max-h-56 overflow-y-auto border border-slate-700">
+            <div className="p-3 bg-slate-900 text-slate-100 rounded-xl font-mono text-[11px] whitespace-pre-wrap max-h-56 overflow-y-auto no-scrollbar border border-slate-700">
               {sqlSchema}
             </div>
           </div>

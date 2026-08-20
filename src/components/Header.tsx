@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useStore } from '../context/StoreContext';
+import { supabase } from '../lib/supabase';
 import {
   ShoppingBag,
   Heart,
@@ -13,10 +14,16 @@ import {
   Sparkles,
   Database,
   ChevronDown,
+  ShieldCheck,
 } from 'lucide-react';
 
 export const Header: React.FC = () => {
   const pathname = usePathname();
+
+  // Hide storefront header on admin routes to prevent duplicate headers/logos
+  if (pathname?.startsWith('/admin')) {
+    return null;
+  }
   const {
     cart,
     wishlist,
@@ -31,9 +38,23 @@ export const Header: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showTgConfig, setShowTgConfig] = useState(false);
   const [tempTg, setTempTg] = useState(telegramUsername);
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
 
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const wishlistCount = wishlist.length;
+
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      const { data } = await supabase.auth.getSession();
+      const localAuth = typeof window !== 'undefined' ? localStorage.getItem('hiwi_admin_session') : null;
+      if (data?.session || localAuth === 'true') {
+        setIsAdminLoggedIn(true);
+      } else {
+        setIsAdminLoggedIn(false);
+      }
+    };
+    checkAdminStatus();
+  }, [pathname]);
 
   const handleSaveTg = (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,8 +131,20 @@ export const Header: React.FC = () => {
           </nav>
 
           {/* Header Action Icons */}
-          <div className="flex items-center space-x-3 sm:space-x-4">
+          <div className="flex items-center space-x-2 sm:space-x-3">
             
+            {/* CONDITIONAL "GO TO ADMIN" BUTTON (Only shown when admin session is active) */}
+            {isAdminLoggedIn && (
+              <Link
+                href="/admin"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1A1A1A] text-[#C5A880] text-xs font-bold hover:bg-[#C5A880] hover:text-black transition-all shadow-sm border border-[#C5A880]/40"
+                title="Go to Admin Dashboard"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Go to Admin</span>
+              </Link>
+            )}
+
             {/* Telegram Handle Switcher */}
             <div className="relative">
               <button
@@ -203,6 +236,21 @@ export const Header: React.FC = () => {
       {/* Mobile Menu Drawer */}
       {mobileMenuOpen && (
         <div className="lg:hidden bg-white border-t border-[#E7E2DA] px-4 pt-4 pb-6 space-y-3 animate-in slide-in-from-top duration-200">
+          
+          {isAdminLoggedIn && (
+            <Link
+              href="/admin"
+              onClick={() => setMobileMenuOpen(false)}
+              className="w-full py-3 px-4 rounded-xl bg-[#1A1A1A] text-[#C5A880] text-xs font-bold uppercase tracking-wider flex items-center justify-between shadow-md"
+            >
+              <span className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-[#C5A880]" />
+                <span>Go to Admin Dashboard</span>
+              </span>
+              <span>→</span>
+            </Link>
+          )}
+
           <div className="p-3 bg-[#0088cc]/10 rounded-xl flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs font-semibold text-[#0088cc]">
               <Send className="w-4 h-4" />

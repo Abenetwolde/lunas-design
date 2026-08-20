@@ -13,14 +13,15 @@ interface ProductCardProps {
 export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const { openTelegramModal, toggleWishlist, isInWishlist } = useStore();
   const [selectedColor, setSelectedColor] = useState<ColorOption>(
-    product.colors[0] || { name: 'Standard', hex: '#1A1A1A' }
+    product.colors && product.colors.length > 0 ? product.colors[0] : { name: 'Standard', hex: '#1A1A1A' }
   );
 
   const isWishlisted = isInWishlist(product.id);
+  const isInStock = product.inStock !== false;
 
   // Format price in ETB
   const formattedPrice = `ETB ${product.price.toLocaleString('en-US')}`;
-  const formattedOriginalPrice = product.originalPrice
+  const formattedOriginalPrice = product.originalPrice && product.originalPrice > product.price
     ? `ETB ${product.originalPrice.toLocaleString('en-US')}`
     : null;
 
@@ -33,7 +34,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           <img
             src={product.image}
             alt={product.name}
-            className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
+            className={`w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105 ${
+              !isInStock ? 'grayscale opacity-75' : ''
+            }`}
           />
 
           {/* Secondary Hover Image */}
@@ -48,15 +51,28 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
         {/* Badges */}
         <div className="absolute top-3 left-3 flex flex-col gap-1 z-10">
-          {product.isNew && (
-            <span className="bg-[#1A1A1A] text-white text-[9px] font-bold tracking-widest px-2.5 py-1 uppercase rounded-md shadow-sm">
-              NEW
-            </span>
-          )}
-          {product.isSale && (
+          {!isInStock ? (
             <span className="bg-red-600 text-white text-[9px] font-bold tracking-widest px-2.5 py-1 uppercase rounded-md shadow-sm">
-              SALE
+              OUT OF STOCK
             </span>
+          ) : (
+            <>
+              {product.badgeText && (
+                <span className="bg-[#1A1A1A] text-white text-[9px] font-bold tracking-widest px-2.5 py-1 uppercase rounded-md shadow-sm">
+                  {product.badgeText}
+                </span>
+              )}
+              {product.isNew && !product.badgeText && (
+                <span className="bg-[#1A1A1A] text-white text-[9px] font-bold tracking-widest px-2.5 py-1 uppercase rounded-md shadow-sm">
+                  NEW
+                </span>
+              )}
+              {product.isSale && formattedOriginalPrice && !product.badgeText && (
+                <span className="bg-red-600 text-white text-[9px] font-bold tracking-widest px-2.5 py-1 uppercase rounded-md shadow-sm">
+                  SALE
+                </span>
+              )}
+            </>
           )}
         </div>
 
@@ -99,21 +115,23 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         </div>
 
         {/* Color Palette Swatches */}
-        <div className="flex items-center gap-1.5 py-0.5">
-          {product.colors.map((c) => (
-            <button
-              key={c.name}
-              onClick={() => setSelectedColor(c)}
-              className={`w-4 h-4 rounded-full border transition-transform ${
-                selectedColor.name === c.name ? 'ring-2 ring-[#1A1A1A] scale-110' : 'border-gray-300 hover:scale-105'
-              }`}
-              style={{ backgroundColor: c.hex }}
-              title={c.name}
-            />
-          ))}
-        </div>
+        {product.colors && product.colors.length > 0 && (
+          <div className="flex items-center gap-1.5 py-0.5">
+            {product.colors.map((c) => (
+              <button
+                key={c.name}
+                onClick={() => setSelectedColor(c)}
+                className={`w-4 h-4 rounded-full border transition-transform ${
+                  selectedColor.name === c.name ? 'ring-2 ring-[#1A1A1A] scale-110' : 'border-gray-300 hover:scale-105'
+                }`}
+                style={{ backgroundColor: c.hex }}
+                title={c.name}
+              />
+            ))}
+          </div>
+        )}
 
-        {/* Rating & ETB Price */}
+        {/* Rating & Conditional ETB Price */}
         <div className="flex items-center justify-between pt-1 border-t border-[#E7E2DA]">
           <div className="flex items-baseline gap-2">
             <span className="text-sm font-extrabold text-[#1A1A1A]">{formattedPrice}</span>
@@ -131,10 +149,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         {/* Telegram Order Action Button */}
         <button
           onClick={() => openTelegramModal(product)}
-          className="w-full py-2.5 bg-[#0088cc] hover:bg-[#0077b3] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 mt-1"
+          disabled={!isInStock}
+          className={`w-full py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 mt-1 ${
+            isInStock
+              ? 'bg-[#0088cc] hover:bg-[#0077b3] text-white'
+              : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+          }`}
         >
           <Send className="w-3.5 h-3.5" />
-          <span>Telegram Order</span>
+          <span>{isInStock ? 'Telegram Order' : 'Out of Stock'}</span>
         </button>
 
       </div>

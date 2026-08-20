@@ -63,11 +63,12 @@ CREATE TABLE IF NOT EXISTS public.products (
     slug VARCHAR(255) UNIQUE NOT NULL,
     category VARCHAR(100) NOT NULL,
     price DECIMAL(10, 2) NOT NULL, -- In ETB
-    original_price DECIMAL(10, 2), -- In ETB
+    original_price DECIMAL(10, 2), -- Optional discount price
     rating DECIMAL(3, 2) DEFAULT 4.9,
     reviews_count INT DEFAULT 24,
     is_new BOOLEAN DEFAULT false,
     is_sale BOOLEAN DEFAULT false,
+    in_stock BOOLEAN DEFAULT true, -- In Stock / Out of Stock
     badge_text VARCHAR(100),
     image TEXT NOT NULL,
     secondary_image TEXT,
@@ -83,7 +84,17 @@ CREATE TABLE IF NOT EXISTS public.products (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
--- 4. ORDERS TABLE (Telegram Inquiry Orders)
+-- 4. REVIEWS TABLE (Real User Product Reviews & Ratings)
+CREATE TABLE IF NOT EXISTS public.reviews (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    product_id VARCHAR(255) NOT NULL,
+    author_name VARCHAR(255) NOT NULL,
+    rating INT CHECK (rating >= 1 AND rating <= 5) NOT NULL,
+    comment TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- 5. ORDERS TABLE (Telegram Inquiry Orders)
 CREATE TABLE IF NOT EXISTS public.orders (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     order_number VARCHAR(50) UNIQUE NOT NULL,
@@ -96,7 +107,7 @@ CREATE TABLE IF NOT EXISTS public.orders (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
--- 5. STORAGE BUCKET CREATION FOR PRODUCT ASSETS
+-- 6. STORAGE BUCKET CREATION FOR PRODUCT ASSETS
 INSERT INTO storage.buckets (id, name, public) 
 VALUES ('hiwi-fashion-assets', 'hiwi-fashion-assets', true)
 ON CONFLICT (id) DO NOTHING;
@@ -111,6 +122,7 @@ CREATE POLICY "Public Delete Assets" ON storage.objects FOR DELETE USING (bucket
 ALTER TABLE public.site_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
@@ -122,6 +134,9 @@ CREATE POLICY "Allow public write categories" ON public.categories FOR ALL USING
 
 CREATE POLICY "Allow public read products" ON public.products FOR SELECT USING (true);
 CREATE POLICY "Allow public write products" ON public.products FOR ALL USING (true);
+
+CREATE POLICY "Allow public read reviews" ON public.reviews FOR SELECT USING (true);
+CREATE POLICY "Allow public insert reviews" ON public.reviews FOR INSERT WITH CHECK (true);
 
 CREATE POLICY "Allow public insert orders" ON public.orders FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public read orders" ON public.orders FOR SELECT USING (true);

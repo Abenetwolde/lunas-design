@@ -2,11 +2,17 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Send, Camera, Globe, Share2, Phone, Mail, MapPin } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 
 export const Footer: React.FC = () => {
+  const pathname = usePathname();
   const { telegramUsername, siteSettings, setIsSqlModalOpen } = useStore();
+
+  if (pathname?.startsWith('/admin')) {
+    return null;
+  }
 
   return (
     <footer className="bg-[#1A1A1A] text-white pt-16 pb-12 border-t border-gray-800">

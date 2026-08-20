@@ -3,17 +3,27 @@ export interface ColorOption {
   hex: string;
 }
 
+export interface Review {
+  id: string;
+  productId: string;
+  authorName: string;
+  rating: number; // 1 to 5
+  comment: string;
+  createdAt: string;
+}
+
 export interface Product {
   id: string;
   name: string;
   slug: string;
   category: 'dresses' | 'tops' | 'accessories' | 'shoes' | string;
   price: number; // In ETB
-  originalPrice?: number; // In ETB
+  originalPrice?: number; // In ETB (Optional - for discount strikethrough)
   rating: number;
   reviewsCount: number;
   isNew?: boolean;
   isSale?: boolean;
+  inStock?: boolean; // In Stock or Out of Stock option
   badgeText?: string; // Optional e.g. "SPECIAL OFFER"
   image: string; // Cover image
   secondaryImage?: string;
@@ -27,6 +37,7 @@ export interface Product {
   deliveryInfo?: string; // Optional Delivery & Returns info
   stockQuantity?: number;
   created_at?: string;
+  reviewsList?: Review[];
 }
 
 export interface Category {

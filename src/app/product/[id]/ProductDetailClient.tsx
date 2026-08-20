@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Product, ColorOption } from '../../../types';
+import { Product, ColorOption, Review } from '../../../types';
 import { useStore } from '../../../context/StoreContext';
 import { ProductCard } from '../../../components/ProductCard';
 import {
@@ -11,16 +11,20 @@ import {
   Heart,
   Star,
   ChevronRight,
+  MessageSquare,
+  CheckCircle,
+  User,
 } from 'lucide-react';
-import { recordTelegramOrder } from '../../../lib/supabase';
+import { recordTelegramOrder, getProductReviews, addReview } from '../../../lib/supabase';
 
 interface Props {
   product: Product;
   relatedProducts: Product[];
 }
 
-export default function ProductDetailClient({ product, relatedProducts }: Props) {
+export default function ProductDetailClient({ product: initialProduct, relatedProducts }: Props) {
   const { addToCart, toggleWishlist, isInWishlist, telegramUsername } = useStore();
+  const [product, setProduct] = useState<Product>(initialProduct);
 
   const [selectedColor, setSelectedColor] = useState<ColorOption>(
     product.colors && product.colors.length > 0 ? product.colors[0] : { name: 'Standard', hex: '#1A1A1A' }
@@ -32,10 +36,20 @@ export default function ProductDetailClient({ product, relatedProducts }: Props)
   const [activeImage, setActiveImage] = useState<string>(product.image);
   const [customerName, setCustomerName] = useState<string>('');
   const [customerNote, setCustomerNote] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'details' | 'care' | 'shipping'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'care' | 'shipping' | 'reviews'>('details');
+
+  // Reviews state
+  const [reviewsList, setReviewsList] = useState<Review[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState<boolean>(true);
+  const [revAuthor, setRevAuthor] = useState<string>('');
+  const [revRating, setRevRating] = useState<number>(5);
+  const [revComment, setRevComment] = useState<string>('');
+  const [submittingReview, setSubmittingReview] = useState<boolean>(false);
+  const [reviewSuccess, setReviewSuccess] = useState<boolean>(false);
 
   const isWishlisted = isInWishlist(product.id);
   const totalAmount = product.price * quantity;
+  const isInStock = product.inStock !== false;
 
   const galleryList = Array.from(
     new Set([product.image, product.secondaryImage, ...(product.images || [])].filter(Boolean) as string[])
@@ -43,6 +57,17 @@ export default function ProductDetailClient({ product, relatedProducts }: Props)
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
   const fullImageUrl = activeImage.startsWith('http') ? activeImage : `${baseUrl}${activeImage}`;
+
+  // Fetch real reviews
+  useEffect(() => {
+    const fetchRevs = async () => {
+      setLoadingReviews(true);
+      const revs = await getProductReviews(product.id);
+      setReviewsList(revs);
+      setLoadingReviews(false);
+    };
+    fetchRevs();
+  }, [product.id]);
 
   // Formatted Telegram Message in ETB
   const formattedMessage = `🛍️ *PRODUCT ORDER INQUIRY — HIWI FASHION*
@@ -65,6 +90,7 @@ ${customerName ? `👤 *Customer Name:* ${customerName}\n` : ''}${
 }Please let me know if this item is in stock and send payment options. Thank you!`;
 
   const handleOrderTelegram = async () => {
+    if (!isInStock) return;
     await recordTelegramOrder({
       customerName: customerName || undefined,
       customerTelegram: `@${telegramUsername}`,
@@ -76,6 +102,28 @@ ${customerName ? `👤 *Customer Name:* ${customerName}\n` : ''}${
     const tgUrl = `https://t.me/${telegramUsername}?text=${encodeURIComponent(formattedMessage)}`;
     window.open(tgUrl, '_blank');
   };
+
+  const handleReviewSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!revComment.trim()) return;
+    setSubmittingReview(true);
+    
+    const res = await addReview(product.id, revAuthor, revRating, revComment);
+    if (res.success && res.review) {
+      const updatedRevs = [res.review, ...reviewsList];
+      setReviewsList(updatedRevs);
+      const avg = updatedRevs.reduce((acc, r) => acc + r.rating, 0) / updatedRevs.length;
+      setProduct({ ...product, rating: avg, reviewsCount: updatedRevs.length });
+      setRevAuthor('');
+      setRevComment('');
+      setRevRating(5);
+      setReviewSuccess(true);
+      setTimeout(() => setReviewSuccess(false), 4000);
+    }
+    setSubmittingReview(false);
+  };
+
+  const hasOriginalPrice = Boolean(product.originalPrice && product.originalPrice > product.price);
 
   return (
     <div className="bg-[#F9F7F4] min-h-screen py-6 sm:py-8">
@@ -107,25 +155,35 @@ ${customerName ? `👤 *Customer Name:* ${customerName}\n` : ''}${
               <img
                 src={activeImage}
                 alt={product.name}
-                className="w-full h-full object-cover object-top transition-all duration-500"
+                className={`w-full h-full object-cover object-top transition-all duration-500 ${
+                  !isInStock ? 'grayscale opacity-80' : ''
+                }`}
               />
 
               {/* Badges */}
               <div className="absolute top-4 left-4 flex flex-col gap-1.5 z-10">
-                {product.badgeText && (
-                  <span className="bg-red-600 text-white text-[10px] font-extrabold tracking-widest px-3 py-1 uppercase rounded-md shadow-sm">
-                    {product.badgeText}
-                  </span>
-                )}
-                {product.isNew && !product.badgeText && (
-                  <span className="bg-[#1A1A1A] text-white text-[10px] font-bold tracking-widest px-3 py-1 uppercase rounded-md shadow-sm">
-                    NEW ARRIVAL
-                  </span>
-                )}
-                {product.isSale && !product.badgeText && (
+                {!isInStock ? (
                   <span className="bg-red-600 text-white text-[10px] font-bold tracking-widest px-3 py-1 uppercase rounded-md shadow-sm">
-                    SPECIAL OFFER
+                    OUT OF STOCK
                   </span>
+                ) : (
+                  <>
+                    {product.badgeText && (
+                      <span className="bg-[#1A1A1A] text-white text-[10px] font-extrabold tracking-widest px-3 py-1 uppercase rounded-md shadow-sm">
+                        {product.badgeText}
+                      </span>
+                    )}
+                    {product.isNew && !product.badgeText && (
+                      <span className="bg-[#1A1A1A] text-white text-[10px] font-bold tracking-widest px-3 py-1 uppercase rounded-md shadow-sm">
+                        NEW ARRIVAL
+                      </span>
+                    )}
+                    {product.isSale && hasOriginalPrice && !product.badgeText && (
+                      <span className="bg-red-600 text-white text-[10px] font-bold tracking-widest px-3 py-1 uppercase rounded-md shadow-sm">
+                        SPECIAL OFFER
+                      </span>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -163,24 +221,34 @@ ${customerName ? `👤 *Customer Name:* ${customerName}\n` : ''}${
           {/* Right Column: Product Detail Controls & Telegram Order */}
           <div className="space-y-6 flex flex-col justify-between">
             <div className="space-y-4">
-              <div>
+              <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-[0.2em] text-[#C5A880]">
                   {product.category}
                 </span>
-                <h1 className="font-serif text-2xl sm:text-4xl font-light text-[#1A1A1A] mt-1">
-                  {product.name}
-                </h1>
+                {isInStock ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-green-50 text-green-700 border border-green-200">
+                    ● In Stock
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-red-50 text-red-700 border border-red-200">
+                    ● Out of Stock
+                  </span>
+                )}
               </div>
 
-              {/* Price & Rating in ETB */}
+              <h1 className="font-serif text-2xl sm:text-4xl font-light text-[#1A1A1A] mt-1">
+                {product.name}
+              </h1>
+
+              {/* Price & Rating in ETB (Conditional Discount Price) */}
               <div className="flex items-center justify-between pt-2 border-b border-[#E7E2DA] pb-4">
                 <div className="flex items-baseline gap-3">
                   <span className="text-2xl font-bold text-[#1A1A1A]">
                     ETB {product.price.toLocaleString()}
                   </span>
-                  {product.originalPrice && (
+                  {hasOriginalPrice && (
                     <span className="text-base text-gray-400 line-through">
-                      ETB {product.originalPrice.toLocaleString()}
+                      ETB {product.originalPrice!.toLocaleString()}
                     </span>
                   )}
                 </div>
@@ -188,7 +256,7 @@ ${customerName ? `👤 *Customer Name:* ${customerName}\n` : ''}${
                 <div className="flex items-center gap-1 text-xs">
                   <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
                   <span className="font-bold text-gray-900">{product.rating.toFixed(1)}</span>
-                  <span className="text-gray-400">({product.reviewsCount} reviews)</span>
+                  <span className="text-gray-400">({reviewsList.length || product.reviewsCount} reviews)</span>
                 </div>
               </div>
 
@@ -299,15 +367,25 @@ ${customerName ? `👤 *Customer Name:* ${customerName}\n` : ''}${
               <div className="flex flex-col sm:flex-row gap-3 pt-2">
                 <button
                   onClick={handleOrderTelegram}
-                  className="flex-1 py-3.5 px-4 bg-[#0088cc] hover:bg-[#0077b3] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-lg flex items-center justify-center gap-2"
+                  disabled={!isInStock}
+                  className={`flex-1 py-3.5 px-4 text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 ${
+                    isInStock
+                      ? 'bg-[#0088cc] hover:bg-[#0077b3] text-white'
+                      : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                  }`}
                 >
                   <Send className="w-4 h-4" />
-                  <span>Send Order to Telegram</span>
+                  <span>{isInStock ? 'Send Order to Telegram' : 'Currently Out of Stock'}</span>
                 </button>
 
                 <button
-                  onClick={() => addToCart(product, selectedColor, selectedSize, quantity)}
-                  className="py-3.5 px-5 bg-white text-black hover:bg-[#C5A880] text-xs font-bold uppercase tracking-wider rounded-xl transition-colors flex items-center justify-center gap-2"
+                  onClick={() => isInStock && addToCart(product, selectedColor, selectedSize, quantity)}
+                  disabled={!isInStock}
+                  className={`py-3.5 px-5 text-xs font-bold uppercase tracking-wider rounded-xl transition-colors flex items-center justify-center gap-2 ${
+                    isInStock
+                      ? 'bg-white text-black hover:bg-[#C5A880]'
+                      : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                  }`}
                 >
                   <ShoppingBag className="w-4 h-4" />
                   <span>Add to Bag</span>
@@ -318,7 +396,7 @@ ${customerName ? `👤 *Customer Name:* ${customerName}\n` : ''}${
           </div>
         </div>
 
-        {/* Tabbed Info */}
+        {/* Tabbed Info (Product Details, Fabric & Care, Delivery & Returns, Customer Reviews) */}
         <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#E7E2DA]">
           <div className="flex border-b border-[#E7E2DA] gap-6 sm:gap-8 overflow-x-auto">
             <button
@@ -345,9 +423,18 @@ ${customerName ? `👤 *Customer Name:* ${customerName}\n` : ''}${
             >
               Delivery & Returns
             </button>
+            <button
+              onClick={() => setActiveTab('reviews')}
+              className={`pb-4 text-xs font-bold uppercase tracking-widest whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                activeTab === 'reviews' ? 'text-[#1A1A1A] border-b-2 border-[#1A1A1A]' : 'text-gray-400'
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>Customer Reviews ({reviewsList.length})</span>
+            </button>
           </div>
 
-          <div className="pt-6 text-xs text-gray-600 leading-relaxed max-w-3xl">
+          <div className="pt-6 text-xs text-gray-600 leading-relaxed max-w-4xl">
             {activeTab === 'details' && (
               <div className="space-y-3">
                 <p>{product.description}</p>
@@ -380,6 +467,131 @@ ${customerName ? `👤 *Customer Name:* ${customerName}\n` : ''}${
                     <li>Telegram order confirmation processed within hours.</li>
                   </ul>
                 )}
+              </div>
+            )}
+
+            {/* REAL USER REVIEWS TAB */}
+            {activeTab === 'reviews' && (
+              <div className="space-y-8">
+                
+                {/* Write a review form */}
+                <div className="bg-[#FAF8F5] p-5 sm:p-6 rounded-2xl border border-[#E7E2DA] space-y-4">
+                  <h3 className="text-sm font-bold text-[#1A1A1A] uppercase tracking-wider flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-[#C5A880]" />
+                    <span>Write a Customer Review</span>
+                  </h3>
+
+                  {reviewSuccess && (
+                    <div className="p-3 bg-green-50 text-green-700 text-xs font-semibold rounded-xl border border-green-200 flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                      <span>Thank you! Your review has been saved to Supabase and published.</span>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleReviewSubmit} className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="font-bold text-gray-800 block mb-1">Your Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={revAuthor}
+                          onChange={(e) => setRevAuthor(e.target.value)}
+                          placeholder="e.g. Bethlehem Alemu"
+                          className="w-full px-3 py-2 border border-[#E7E2DA] rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="font-bold text-gray-800 block mb-1">Rating</label>
+                        <div className="flex items-center gap-1.5 pt-1">
+                          {[1, 2, 3, 4, 5].map((starVal) => (
+                            <button
+                              key={starVal}
+                              type="button"
+                              onClick={() => setRevRating(starVal)}
+                              className="p-1 hover:scale-110 transition-transform"
+                            >
+                              <Star
+                                className={`w-5 h-5 ${
+                                  starVal <= revRating ? 'text-amber-500 fill-amber-500' : 'text-gray-300'
+                                }`}
+                              />
+                            </button>
+                          ))}
+                          <span className="ml-2 font-bold text-gray-800">{revRating} / 5 Stars</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-gray-800 block mb-1">Review Comment</label>
+                      <textarea
+                        required
+                        rows={3}
+                        value={revComment}
+                        onChange={(e) => setRevComment(e.target.value)}
+                        placeholder="Write your authentic feedback about the fabric, fitting, or delivery experience..."
+                        className="w-full px-3 py-2 border border-[#E7E2DA] rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={submittingReview}
+                      className="px-6 py-2.5 bg-[#1A1A1A] text-white font-bold uppercase tracking-wider text-xs rounded-xl hover:bg-[#C5A880] transition-colors shadow-md"
+                    >
+                      {submittingReview ? 'Submitting Review...' : 'Submit Review'}
+                    </button>
+                  </form>
+                </div>
+
+                {/* Reviews List */}
+                <div className="space-y-4">
+                  <h4 className="font-bold text-gray-900 uppercase tracking-wider text-xs">
+                    Customer Feedback ({reviewsList.length})
+                  </h4>
+
+                  {loadingReviews ? (
+                    <p className="text-gray-400 italic">Loading customer reviews...</p>
+                  ) : reviewsList.length === 0 ? (
+                    <p className="text-gray-500 italic">No reviews submitted yet. Be the first to review this product!</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {reviewsList.map((rev) => (
+                        <div key={rev.id} className="p-4 bg-white rounded-2xl border border-[#E7E2DA] space-y-2 shadow-2xs">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-full bg-[#FAF8F5] border border-[#E7E2DA] flex items-center justify-center text-gray-600">
+                                <User className="w-4 h-4" />
+                              </div>
+                              <span className="font-bold text-gray-900 text-xs">{rev.authorName}</span>
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <Star
+                                  key={s}
+                                  className={`w-3.5 h-3.5 ${
+                                    s <= rev.rating ? 'text-amber-500 fill-amber-500' : 'text-gray-200'
+                                  }`}
+                                />
+                              ))}
+                              <span className="text-[10px] text-gray-400 ml-1">
+                                {new Date(rev.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+
+                          <p className="text-gray-700 text-xs font-light leading-relaxed pl-9">
+                            "{rev.comment}"
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
               </div>
             )}
           </div>

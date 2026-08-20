@@ -122,6 +122,7 @@ export default function AdminClient({
   const [pGalleryImages, setPGalleryImages] = useState<string[]>([]);
   const [pIsNew, setPIsNew] = useState(true);
   const [pIsSale, setPIsSale] = useState(false);
+  const [pInStock, setPInStock] = useState(true);
   const [uploadingImg, setUploadingImg] = useState(false);
 
   // Dynamic Colors state in product form
@@ -204,8 +205,8 @@ export default function AdminClient({
     setPName('');
     setPCategory(categories[0]?.slug || 'dresses');
     setPPrice('2500');
-    setPOrigPrice('3200');
-    setPBadgeText('SPECIAL OFFER');
+    setPOrigPrice(''); // Empty by default (Optional)
+    setPBadgeText('');
     setPDesc('Handcrafted authentic Ethiopian fashion garment.');
     setPMaterial('Ethiopian Fine Cotton');
     setPOccasion('Casual & Ceremonial');
@@ -222,6 +223,7 @@ export default function AdminClient({
     setPSizes(['XS', 'S', 'M', 'L', 'XL']);
     setPIsNew(true);
     setPIsSale(false);
+    setPInStock(true);
     setShowProductModal(true);
   };
 
@@ -245,27 +247,48 @@ export default function AdminClient({
     setPSizes(prod.sizes && prod.sizes.length > 0 ? prod.sizes : ['XS', 'S', 'M', 'L', 'XL']);
     setPIsNew(Boolean(prod.isNew));
     setPIsSale(Boolean(prod.isSale));
+    setPInStock(prod.inStock !== false);
     setShowProductModal(true);
   };
 
+  // Multi-file upload support for gallery images
   const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>, targetType: 'cover' | 'secondary' | 'gallery' | 'category') => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
+    if (e.target.files && e.target.files.length > 0) {
+      const files = Array.from(e.target.files);
       setUploadingImg(true);
-      const { url } = await uploadImageToSupabase(file);
-      if (url) {
-        if (targetType === 'cover') setPImage(url);
-        else if (targetType === 'secondary') setPSecondaryImage(url);
-        else if (targetType === 'gallery') setPGalleryImages([...pGalleryImages, url]);
-        else if (targetType === 'category') setCatImage(url);
-        showToast('Image uploaded to Supabase Storage!');
+
+      if (targetType === 'gallery') {
+        const uploadedUrls: string[] = [];
+        for (const file of files) {
+          const { url } = await uploadImageToSupabase(file);
+          if (url) uploadedUrls.push(url);
+        }
+        if (uploadedUrls.length > 0) {
+          setPGalleryImages((prev) => [...prev, ...uploadedUrls]);
+          showToast(`${uploadedUrls.length} image(s) uploaded to Supabase Storage!`);
+        }
+      } else {
+        const file = files[0];
+        const { url } = await uploadImageToSupabase(file);
+        if (url) {
+          if (targetType === 'cover') setPImage(url);
+          else if (targetType === 'secondary') setPSecondaryImage(url);
+          else if (targetType === 'category') setCatImage(url);
+          showToast('Image uploaded to Supabase Storage!');
+        }
       }
       setUploadingImg(false);
     }
   };
 
   const handleAddColor = () => {
-    setPColors([...pColors, { name: 'Custom Color', hex: '#C5A880' }]);
+    setPColors([...pColors, { name: 'Pure White', hex: '#FFFFFF' }]);
+  };
+
+  const handleAddPresetColor = (preset: ColorOption) => {
+    if (!pColors.some((c) => c.name === preset.name || c.hex.toLowerCase() === preset.hex.toLowerCase())) {
+      setPColors([...pColors, preset]);
+    }
   };
 
   const handleRemoveColor = (idx: number) => {
@@ -291,11 +314,13 @@ export default function AdminClient({
     if (!pName || !pPrice) return;
 
     setLoading(true);
+    const hasOrigPrice = Boolean(pOrigPrice && Number(pOrigPrice) > Number(pPrice));
+
     const prodData: Partial<Product> = {
       name: pName,
       category: pCategory,
       price: Number(pPrice),
-      originalPrice: pOrigPrice ? Number(pOrigPrice) : undefined,
+      originalPrice: hasOrigPrice ? Number(pOrigPrice) : undefined,
       badgeText: pBadgeText || undefined,
       description: pDesc || 'Handcrafted Habesha garment.',
       material: pMaterial,
@@ -307,7 +332,8 @@ export default function AdminClient({
       secondaryImage: pSecondaryImage || undefined,
       images: pGalleryImages.length > 0 ? pGalleryImages : [pImage].filter(Boolean),
       isNew: pIsNew,
-      isSale: pIsSale,
+      isSale: hasOrigPrice,
+      inStock: pInStock,
       sizes: pSizes,
       colors: pColors,
     };
@@ -1232,120 +1258,126 @@ export default function AdminClient({
               </ol>
             </div>
           </div>
-        )}
-
-        {/* COMPREHENSIVE ADD & EDIT PRODUCT FORM MODAL */}
+        )}        {/* COMPREHENSIVE ADD & EDIT PRODUCT FORM MODAL */}
         {showProductModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-            <div className="w-full max-w-3xl bg-white rounded-3xl shadow-2xl p-6 sm:p-8 border border-[#E7E2DA] space-y-6 my-8 animate-in zoom-in-95 duration-200">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-6 overflow-y-auto">
+            <div className="w-full max-w-3xl bg-white rounded-3xl shadow-2xl p-5 sm:p-8 border border-[#E7E2DA] space-y-6 my-auto max-h-[85vh] sm:max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-200">
+              
               <div className="flex justify-between items-center pb-4 border-b border-[#E7E2DA]">
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#C5A880]">PRODUCT SPECIFICATIONS</span>
+                  <span className="text-[10px] font-extrabold uppercase tracking-[0.25em] text-[#C5A880]">PRODUCT ATELIER MANAGEMENT</span>
                   <h3 className="font-bold text-xl text-[#1A1A1A]">
-                    {editingProductId ? 'Edit Product Catalog Item' : 'Create New Product Item'}
+                    {editingProductId ? 'Edit Catalog Product Item' : 'Create New Catalog Product'}
                   </h3>
                 </div>
-                <button onClick={() => setShowProductModal(false)} className="text-gray-400 hover:text-black">
+                <button onClick={() => setShowProductModal(false)} className="text-gray-400 hover:text-black p-1">
                   <X className="w-6 h-6" />
                 </button>
               </div>
 
               <form onSubmit={handleSaveProduct} className="space-y-6 text-xs">
                 
-                {/* Title & Category */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="sm:col-span-2">
-                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                      Product Name / Title *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={pName}
-                      onChange={(e) => setPName(e.target.value)}
-                      placeholder="e.g. Handwoven Shemma Netela Scarf"
-                      className="w-full px-3.5 py-2.5 border rounded-xl font-bold text-sm"
-                    />
+                {/* 1. BASIC INFORMATION */}
+                <div className="space-y-3 p-4 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA]">
+                  <span className="font-bold text-xs uppercase tracking-wider text-gray-900 block border-b border-[#E7E2DA] pb-2">
+                    1. Basic Product Overview
+                  </span>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+                    <div className="sm:col-span-2">
+                      <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                        Product Title / Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={pName}
+                        onChange={(e) => setPName(e.target.value)}
+                        placeholder="e.g. Handwoven Shemma Netela Scarf"
+                        className="w-full px-3.5 py-2.5 border rounded-xl font-bold text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#C5A880] focus:border-[#C5A880]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                        Category *
+                      </label>
+                      <select
+                        value={pCategory}
+                        onChange={(e) => setPCategory(e.target.value)}
+                        className="w-full px-3.5 py-2.5 border rounded-xl bg-white font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
+                      >
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.slug}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                      Category *
-                    </label>
-                    <select
-                      value={pCategory}
-                      onChange={(e) => setPCategory(e.target.value)}
-                      className="w-full px-3.5 py-2.5 border rounded-xl bg-white font-bold"
-                    >
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.slug}>{c.name}</option>
-                      ))}
-                    </select>
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-2">
+                    <div>
+                      <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                        Selling Price (ETB) *
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        value={pPrice}
+                        onChange={(e) => setPPrice(e.target.value)}
+                        placeholder="1200"
+                        className="w-full px-3.5 py-2.5 border rounded-xl font-bold text-sm text-[#1A1A1A] bg-white focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                        Original Price (Optional)
+                      </label>
+                      <input
+                        type="number"
+                        value={pOrigPrice}
+                        onChange={(e) => setPOrigPrice(e.target.value)}
+                        placeholder="e.g. 1500 (blank if none)"
+                        className="w-full px-3.5 py-2.5 border rounded-xl text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                        Stock Availability *
+                      </label>
+                      <select
+                        value={pInStock ? 'true' : 'false'}
+                        onChange={(e) => setPInStock(e.target.value === 'true')}
+                        className="w-full px-3.5 py-2.5 border rounded-xl bg-white font-bold text-[#1A1A1A] focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
+                      >
+                        <option value="true">● In Stock</option>
+                        <option value="false">● Out of Stock</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                        Badge Banner Text
+                      </label>
+                      <input
+                        type="text"
+                        value={pBadgeText}
+                        onChange={(e) => setPBadgeText(e.target.value)}
+                        placeholder="e.g. SPECIAL OFFER"
+                        className="w-full px-3.5 py-2.5 border rounded-xl font-bold text-[#C5A880] uppercase bg-white focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                {/* Pricing & Badges */}
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                  <div>
-                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                      Selling Price (ETB) *
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      value={pPrice}
-                      onChange={(e) => setPPrice(e.target.value)}
-                      placeholder="1200"
-                      className="w-full px-3.5 py-2.5 border rounded-xl font-bold text-sm text-[#1A1A1A]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                      Original Price (ETB)
-                    </label>
-                    <input
-                      type="number"
-                      value={pOrigPrice}
-                      onChange={(e) => setPOrigPrice(e.target.value)}
-                      placeholder="1550"
-                      className="w-full px-3.5 py-2.5 border rounded-xl text-gray-600"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                      Badge Banner Text
-                    </label>
-                    <input
-                      type="text"
-                      value={pBadgeText}
-                      onChange={(e) => setPBadgeText(e.target.value)}
-                      placeholder="SPECIAL OFFER"
-                      className="w-full px-3.5 py-2.5 border rounded-xl font-bold text-[#C5A880] uppercase"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                      Stock Quantity
-                    </label>
-                    <input
-                      type="number"
-                      value={pStock}
-                      onChange={(e) => setPStock(e.target.value)}
-                      className="w-full px-3.5 py-2.5 border rounded-xl font-bold"
-                    />
-                  </div>
-                </div>
-
-                {/* Cover Image & Multiple Gallery Images */}
+                {/* 2. MEDIA & GALLERY */}
                 <div className="p-4 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA] space-y-4">
-                  <div className="flex justify-between items-center">
-                    <label className="font-bold text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
-                      <ImageIcon className="w-4 h-4 text-[#C5A880]" /> Cover Image & Gallery Images
+                  <div className="flex justify-between items-center border-b border-[#E7E2DA] pb-2">
+                    <label className="font-bold text-xs text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <ImageIcon className="w-4 h-4 text-[#C5A880]" /> 2. Primary Cover & Gallery Uploads
                     </label>
-                    {uploadingImg && <span className="text-xs text-[#0088cc] font-bold">Uploading image...</span>}
+                    {uploadingImg && <span className="text-xs text-[#0088cc] font-bold animate-pulse">Uploading image(s)...</span>}
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1355,7 +1387,7 @@ export default function AdminClient({
                         type="file"
                         accept="image/*"
                         onChange={(e) => handleImageFileChange(e, 'cover')}
-                        className="w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#1A1A1A] file:text-white"
+                        className="w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#1A1A1A] file:text-white hover:file:bg-[#C5A880] cursor-pointer"
                       />
                       <input
                         type="text"
@@ -1364,17 +1396,19 @@ export default function AdminClient({
                         placeholder="Or enter Image URL"
                         className="w-full px-3 py-1.5 border rounded-xl bg-white"
                       />
-                      {pImage && <img src={pImage} alt="Cover Preview" className="w-20 h-24 object-cover rounded-xl border mt-2" />}
+                      {pImage && <img src={pImage} alt="Cover Preview" className="w-20 h-24 object-cover rounded-xl border mt-2 shadow-xs" />}
                     </div>
 
                     <div className="space-y-1.5">
-                      <span className="font-bold text-gray-700 block">Add Secondary / Gallery Images</span>
+                      <span className="font-bold text-gray-700 block">Upload Gallery Images (Multi-select)</span>
                       <input
                         type="file"
                         accept="image/*"
+                        multiple
                         onChange={(e) => handleImageFileChange(e, 'gallery')}
-                        className="w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#1A1A1A] file:text-white"
+                        className="w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#1A1A1A] file:text-white hover:file:bg-[#C5A880] cursor-pointer"
                       />
+                      <p className="text-[10px] text-gray-400 italic">Select multiple images at once to build product gallery.</p>
                       
                       {/* Gallery Thumbnails List */}
                       <div className="flex flex-wrap gap-2 pt-2">
@@ -1395,36 +1429,66 @@ export default function AdminClient({
                   </div>
                 </div>
 
-                {/* DYNAMIC COLORS MANAGEMENT (OPTIONAL) */}
+                {/* 3. DYNAMIC COLOR SELECTION WITH PRESET SUGGESTIONS */}
                 <div className="p-4 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA] space-y-3">
-                  <div className="flex justify-between items-center">
-                    <label className="font-bold text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
-                      <Palette className="w-4 h-4 text-[#C5A880]" /> Dynamic Color Options (Optional)
+                  <div className="flex justify-between items-center border-b border-[#E7E2DA] pb-2">
+                    <label className="font-bold text-xs text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <Palette className="w-4 h-4 text-[#C5A880]" /> 3. Product Color Palette
                     </label>
                     <button
                       type="button"
                       onClick={handleAddColor}
-                      className="px-3 py-1 bg-[#1A1A1A] text-white rounded-xl text-[11px] font-bold hover:bg-[#C5A880] flex items-center gap-1"
+                      className="px-3 py-1 bg-[#1A1A1A] text-white rounded-xl text-[11px] font-bold hover:bg-[#C5A880] flex items-center gap-1 transition-colors"
                     >
-                      <Plus className="w-3 h-3" /> Add Color
+                      <Plus className="w-3.3 h-3.3" /> Add Custom Color
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Preset Pills */}
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block">
+                      Quick 1-Tap Color Presets:
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { name: 'Pure White', hex: '#FFFFFF' },
+                        { name: 'Ivory Cream', hex: '#FAF8F5' },
+                        { name: 'Habesha Gold', hex: '#C5A880' },
+                        { name: 'Royal Gold', hex: '#D4AF37' },
+                        { name: 'Emerald Green', hex: '#1B4D3E' },
+                        { name: 'Deep Burgundy', hex: '#800020' },
+                        { name: 'Royal Navy', hex: '#002366' },
+                        { name: 'Charcoal Black', hex: '#1A1A1A' },
+                      ].map((preset) => (
+                        <button
+                          key={preset.name}
+                          type="button"
+                          onClick={() => handleAddPresetColor(preset)}
+                          className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-[#E7E2DA] rounded-full text-[11px] font-bold hover:border-[#C5A880] hover:scale-105 transition-all shadow-2xs"
+                        >
+                          <span className="w-3.5 h-3.5 rounded-full border border-black/20" style={{ backgroundColor: preset.hex }} />
+                          <span className="text-gray-800">{preset.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Active Selected Colors */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                     {pColors.map((col, idx) => (
-                      <div key={idx} className="p-3 bg-white rounded-xl border flex items-center justify-between gap-2">
+                      <div key={idx} className="p-2.5 bg-white rounded-xl border flex items-center justify-between gap-2 shadow-2xs">
                         <div className="flex items-center gap-2 flex-1">
                           <input
                             type="color"
                             value={col.hex}
                             onChange={(e) => handleColorChange(idx, 'hex', e.target.value)}
-                            className="w-8 h-8 rounded-lg cursor-pointer border-0 p-0"
+                            className="w-7 h-7 rounded-lg cursor-pointer border-0 p-0"
                           />
                           <input
                             type="text"
                             value={col.name}
                             onChange={(e) => handleColorChange(idx, 'name', e.target.value)}
-                            placeholder="Color Name e.g. White & Gold"
+                            placeholder="Color Name (e.g. Pure White)"
                             className="w-full px-2 py-1 border rounded-lg text-xs font-bold"
                           />
                         </div>
@@ -1440,12 +1504,12 @@ export default function AdminClient({
                   </div>
                 </div>
 
-                {/* DYNAMIC SIZES MANAGEMENT */}
+                {/* 4. SIZES SELECTION */}
                 <div className="p-4 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA] space-y-2">
-                  <label className="font-bold text-gray-900 uppercase tracking-wider block mb-1">
-                    Available Sizes (Select applicable)
+                  <label className="font-bold text-xs text-gray-900 uppercase tracking-wider block border-b border-[#E7E2DA] pb-2">
+                    4. Available Sizes
                   </label>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 pt-1">
                     {['ONE SIZE', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'Custom'].map((sz) => {
                       const selected = pSizes.includes(sz);
                       return (
@@ -1455,7 +1519,7 @@ export default function AdminClient({
                           onClick={() => handleToggleSize(sz)}
                           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
                             selected
-                              ? 'bg-[#1A1A1A] text-white shadow-sm'
+                              ? 'bg-[#1A1A1A] text-white shadow-xs'
                               : 'bg-white text-gray-700 border border-[#E7E2DA] hover:border-black'
                           }`}
                         >
@@ -1466,83 +1530,87 @@ export default function AdminClient({
                   </div>
                 </div>
 
-                {/* Description & Rich Tabs Content */}
-                <div>
-                  <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                    Product Description Overview
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={pDesc}
-                    onChange={(e) => setPDesc(e.target.value)}
-                    placeholder="Traditional Ethiopian handwoven cotton Netela scarf with gold and red woven borders (Tibet). Light, elegant, and versatile."
-                    className="w-full px-3.5 py-2.5 border rounded-xl"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* 5. DESCRIPTION & SPECIFICATIONS */}
+                <div className="space-y-4">
                   <div>
                     <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                      Fabric & Care Details
+                      5. Product Description Overview *
                     </label>
                     <textarea
                       rows={2}
-                      value={pFabricCare}
-                      onChange={(e) => setPFabricCare(e.target.value)}
-                      placeholder="100% Ethiopian Cotton Shemma. Dry clean or hand wash cold."
-                      className="w-full px-3 py-2 border rounded-xl"
+                      required
+                      value={pDesc}
+                      onChange={(e) => setPDesc(e.target.value)}
+                      placeholder="Traditional Ethiopian handwoven cotton Netela scarf with gold and red woven borders (Tibet). Light, elegant, and versatile."
+                      className="w-full px-3.5 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
                     />
                   </div>
 
-                  <div>
-                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                      Delivery & Returns Info
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                        Fabric & Care Details
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={pFabricCare}
+                        onChange={(e) => setPFabricCare(e.target.value)}
+                        placeholder="100% Ethiopian Cotton Shemma. Dry clean or hand wash cold."
+                        className="w-full px-3 py-2 border rounded-xl"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                        Delivery & Shipping Info
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={pDeliveryInfo}
+                        onChange={(e) => setPDeliveryInfo(e.target.value)}
+                        placeholder="Fast express delivery in Addis Ababa within 24-48 hours."
+                        className="w-full px-3 py-2 border rounded-xl"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-6 pt-2">
+                    <label className="flex items-center gap-2 cursor-pointer font-bold">
+                      <input
+                        type="checkbox"
+                        checked={pIsNew}
+                        onChange={(e) => setPIsNew(e.target.checked)}
+                        className="rounded text-[#1A1A1A]"
+                      />
+                      <span>Mark as NEW ARRIVAL</span>
                     </label>
-                    <textarea
-                      rows={2}
-                      value={pDeliveryInfo}
-                      onChange={(e) => setPDeliveryInfo(e.target.value)}
-                      placeholder="Fast delivery in Addis Ababa within 24-48 hours."
-                      className="w-full px-3 py-2 border rounded-xl"
-                    />
+
+                    <label className="flex items-center gap-2 cursor-pointer font-bold">
+                      <input
+                        type="checkbox"
+                        checked={pIsSale}
+                        onChange={(e) => setPIsSale(e.target.checked)}
+                        className="rounded text-red-600"
+                      />
+                      <span>Mark as ON SALE</span>
+                    </label>
                   </div>
                 </div>
 
-                <div className="flex gap-6 pt-2">
-                  <label className="flex items-center gap-2 cursor-pointer font-bold">
-                    <input
-                      type="checkbox"
-                      checked={pIsNew}
-                      onChange={(e) => setPIsNew(e.target.checked)}
-                      className="rounded text-[#1A1A1A]"
-                    />
-                    <span>Mark as NEW ARRIVAL</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 cursor-pointer font-bold">
-                    <input
-                      type="checkbox"
-                      checked={pIsSale}
-                      onChange={(e) => setPIsSale(e.target.checked)}
-                      className="rounded text-red-600"
-                    />
-                    <span>Mark as ON SALE</span>
-                  </label>
-                </div>
-
-                <div className="pt-4 flex justify-end gap-3 border-t">
+                {/* MODAL ACTIONS BAR */}
+                <div className="sticky bottom-0 bg-white pt-4 pb-2 flex justify-end gap-3 border-t border-[#E7E2DA] z-10">
                   <button
                     type="button"
                     onClick={() => setShowProductModal(false)}
-                    className="px-5 py-2.5 border rounded-xl font-bold hover:bg-gray-100"
+                    className="px-5 py-2.5 border rounded-xl font-bold hover:bg-gray-100 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-7 py-2.5 bg-[#1A1A1A] text-white font-bold rounded-xl hover:bg-[#C5A880] transition-colors shadow-md"
+                    className="px-7 py-2.5 bg-[#1A1A1A] text-white font-bold rounded-xl hover:bg-[#C5A880] transition-colors shadow-md flex items-center gap-2"
                   >
-                    {editingProductId ? 'Update Product Item' : 'Save Product Item'}
+                    {editingProductId ? 'Update Product Catalog Item' : 'Save New Product Item'}
                   </button>
                 </div>
               </form>
@@ -1552,8 +1620,8 @@ export default function AdminClient({
 
         {/* CATEGORY MODAL (Create & Edit) */}
         {showCatModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-            <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 border border-[#E7E2DA] space-y-4 animate-in zoom-in-95 duration-200">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-6 overflow-y-auto">
+            <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 border border-[#E7E2DA] space-y-4 my-auto max-h-[85vh] sm:max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-200">
               <div className="flex justify-between items-center pb-3 border-b border-[#E7E2DA]">
                 <h3 className="font-bold text-base text-[#1A1A1A]">
                   {editingCatId ? 'Edit Category' : 'Create New Category'}
@@ -1639,8 +1707,8 @@ export default function AdminClient({
 
         {/* RICH INSPECT PRODUCT DETAIL MODAL (Matching exact storefront detail layout) */}
         {viewProduct && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 overflow-y-auto">
-            <div className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl p-6 sm:p-8 border border-[#E7E2DA] space-y-6 my-8 animate-in zoom-in-95 duration-200">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-3 sm:p-6 overflow-y-auto">
+            <div className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl p-6 sm:p-8 border border-[#E7E2DA] space-y-6 my-auto max-h-[85vh] sm:max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-200">
               
               <div className="flex justify-between items-center pb-3 border-b border-[#E7E2DA]">
                 <span className="text-xs font-bold uppercase tracking-widest text-[#C5A880]">
@@ -1806,8 +1874,8 @@ export default function AdminClient({
 
         {/* ORDER INVOICE MODAL */}
         {selectedOrder && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-            <div className="w-full max-w-xl bg-white rounded-3xl shadow-2xl p-6 border border-[#E7E2DA] space-y-4 my-8 animate-in zoom-in-95 duration-200">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-6 overflow-y-auto">
+            <div className="w-full max-w-xl bg-white rounded-3xl shadow-2xl p-6 border border-[#E7E2DA] space-y-4 my-auto max-h-[85vh] sm:max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-200">
               <div className="flex justify-between items-center pb-3 border-b border-[#E7E2DA]">
                 <div>
                   <span className="text-[10px] font-bold uppercase text-[#C5A880]">TELEGRAM INQUIRY INVOICE</span>
