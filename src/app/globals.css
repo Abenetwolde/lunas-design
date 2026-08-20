@@ -1,26 +1,79 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --bg-primary: #F9F7F4;
+    --bg-card: #FFFFFF;
+    --bg-accent: #FAF8F5;
+    --text-primary: #1A1A1A;
+    --text-muted: #666059;
+    --border-color: #E7E2DA;
+    --accent-gold: #C5A880;
+    --accent-gold-dark: #A88B64;
+    --telegram-color: #0088cc;
+    --telegram-hover: #0077b3;
+  }
+
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    overflow-x: hidden;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F4F1EA;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D5CDC0;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #C5A880;
+}
+
+/* Glassmorphism helpers */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(231, 226, 218, 0.8);
+}
+
+.glass-dark {
+  background: rgba(26, 26, 26, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Shimmer pulse for Telegram button */
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(0, 136, 204, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(0, 136, 204, 0.6);
+  }
+}
+
+.telegram-btn-pulse {
+  animation: pulseGlow 2.5s infinite;
+}
+
+/* Image zoom effect */
+.product-card-img {
+  transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.product-card:hover .product-card-img {
+  transform: scale(1.06);
 }
