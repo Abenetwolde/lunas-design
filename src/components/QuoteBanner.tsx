@@ -6,12 +6,12 @@ import { ArrowRight } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 
 export const QuoteBanner: React.FC = () => {
-  const { siteSettings } = useStore();
+  const { siteSettings, t } = useStore();
 
   const bannerImg = siteSettings.promoBannerImage || 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&q=80&w=1600';
-  const headline = siteSettings.promoBannerHeadline || 'Crafted for Every Special Moment';
+  const headline = siteSettings.promoBannerHeadline || t('craftedSpecialMoment');
   const subtitle = siteSettings.promoBannerSubtitle || 'From traditional Ethiopian celebrations to casual everyday wear. Handcrafted with organic Ethiopian cotton and woven Netela embroidery.';
-  const ctaText = siteSettings.promoBannerCtaText || 'DISCOVER COLLECTION';
+  const ctaText = siteSettings.promoBannerCtaText || t('discoverCollection');
   const ctaLink = siteSettings.promoBannerCtaLink || '/catalog';
 
   return (

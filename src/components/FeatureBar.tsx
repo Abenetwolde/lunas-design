@@ -5,28 +5,28 @@ import { Truck, ShieldCheck, RefreshCw, Headset } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 
 export const FeatureBar: React.FC = () => {
-  const { siteSettings } = useStore();
+  const { siteSettings, t } = useStore();
 
   const features = [
     {
       icon: Truck,
-      title: siteSettings.miniCard1Title || 'LOCAL DELIVERY',
-      description: siteSettings.miniCard1Desc || 'Free in Addis Ababa over ETB 2,500',
+      title: siteSettings.miniCard1Title || t('localDelivery'),
+      description: siteSettings.miniCard1Desc || t('localDeliveryDesc'),
     },
     {
       icon: ShieldCheck,
-      title: siteSettings.miniCard2Title || 'DIRECT INQUIRE & BUY',
-      description: siteSettings.miniCard2Desc || '100% instant inbox order confirmation',
+      title: siteSettings.miniCard2Title || t('directInquireBuy'),
+      description: siteSettings.miniCard2Desc || t('directInquireBuyDesc'),
     },
     {
       icon: RefreshCw,
-      title: siteSettings.miniCard3Title || 'FITTING GUARANTEE',
-      description: siteSettings.miniCard3Desc || 'Easy exchange & size customization',
+      title: siteSettings.miniCard3Title || t('fittingGuarantee'),
+      description: siteSettings.miniCard3Desc || t('fittingGuaranteeDesc'),
     },
     {
       icon: Headset,
-      title: siteSettings.miniCard4Title || 'CUSTOMER CONCIERGE',
-      description: siteSettings.miniCard4Desc || '24/7 direct seller support in ETB',
+      title: siteSettings.miniCard4Title || t('customerConcierge'),
+      description: siteSettings.miniCard4Desc || t('customerConciergeDesc'),
     },
   ];
 

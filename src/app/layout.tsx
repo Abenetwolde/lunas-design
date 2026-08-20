@@ -1,14 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { StoreProvider } from '../context/StoreContext';
-import { Header } from '../components/Header';
-import { Footer } from '../components/Footer';
-import { TelegramOrderModal } from '../components/TelegramOrderModal';
-import { CartDrawer } from '../components/CartDrawer';
-import { WishlistDrawer } from '../components/WishlistDrawer';
-import { SupabaseSqlModal } from '../components/SupabaseSqlModal';
-
-import { SeoManager } from '../components/SeoManager';
+import { ClientLayout } from '../components/ClientLayout';
 
 export const metadata: Metadata = {
   title: 'Hiwi Fashion | Authentic Habesha Kemis & Modern Atelier (ETB)',
@@ -29,16 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="min-h-full flex flex-col bg-[#F9F7F4] text-[#1A1A1A]">
-        <StoreProvider>
-          <SeoManager />
-          <Header />
-          <main className="flex-1">{children}</main>
-          <Footer />
-          <TelegramOrderModal />
-          <CartDrawer />
-          <WishlistDrawer />
-          <SupabaseSqlModal />
-        </StoreProvider>
+        <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
   );

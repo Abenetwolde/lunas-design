@@ -98,6 +98,72 @@ export default function AdminClient({
   const [siteForm, setSiteForm] = useState<SiteSettings>(initialSettings || siteSettings);
   const [siteSaving, setSiteSaving] = useState(false);
 
+  // Site Image Upload states
+  const [uploadingHero, setUploadingHero] = useState(false);
+  const [uploadingPromo, setUploadingPromo] = useState(false);
+  const [uploadingOg, setUploadingOg] = useState(false);
+  const [uploadingIgIndex, setUploadingIgIndex] = useState<number | null>(null);
+
+  const handleUploadSiteImage = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    field: keyof SiteSettings,
+    setLoadingState: (loading: boolean) => void
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLoadingState(true);
+    try {
+      const { url, error } = await uploadImageToSupabase(file);
+      if (url) {
+        setSiteForm((prev) => ({ ...prev, [field]: url }));
+        showToast('Image uploaded successfully!');
+      } else {
+        showToast(`Image upload failed: ${error || ''}`);
+      }
+    } catch (err: any) {
+      showToast(`Upload error: ${err?.message || err}`);
+    } finally {
+      setLoadingState(false);
+    }
+  };
+
+  const handleUploadIgImage = async (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingIgIndex(index);
+    try {
+      const { url, error } = await uploadImageToSupabase(file);
+      if (url) {
+        setSiteForm((prev) => {
+          const currentIg = [...(prev.instagramImages || [])];
+          currentIg[index] = url;
+          return { ...prev, instagramImages: currentIg };
+        });
+        showToast('Instagram photo uploaded!');
+      } else {
+        showToast(`Upload error: ${error || ''}`);
+      }
+    } catch (err: any) {
+      showToast(`Upload error: ${err?.message || err}`);
+    } finally {
+      setUploadingIgIndex(null);
+    }
+  };
+
+  const handleAddIgSlot = () => {
+    setSiteForm((prev) => ({
+      ...prev,
+      instagramImages: [...(prev.instagramImages || []), ''],
+    }));
+  };
+
+  const handleRemoveIgSlot = (index: number) => {
+    setSiteForm((prev) => ({
+      ...prev,
+      instagramImages: (prev.instagramImages || []).filter((_, i) => i !== index),
+    }));
+  };
+
   // Search & Filter states
   const [productSearch, setProductSearch] = useState('');
   const [productCatFilter, setProductCatFilter] = useState<string>('all');
@@ -1154,17 +1220,50 @@ export default function AdminClient({
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Hero Cover Image Upload */}
                   <div>
                     <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                      Hero Image URL
+                      Hero Cover Image Upload
                     </label>
-                    <input
-                      type="text"
-                      value={siteForm.heroImageUrl || ''}
-                      onChange={(e) => setSiteForm({ ...siteForm, heroImageUrl: e.target.value })}
-                      placeholder="https://... or upload image"
-                      className="w-full px-3 py-2.5 border rounded-xl"
-                    />
+                    <div className="space-y-2">
+                      {siteForm.heroImageUrl && (
+                        <div className="relative w-full h-32 rounded-xl overflow-hidden border border-[#E7E2DA]">
+                          <img
+                            src={siteForm.heroImageUrl}
+                            alt="Hero Preview"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <label className="flex-1 px-4 py-2.5 bg-[#FAF8F5] border border-[#E7E2DA] rounded-xl cursor-pointer hover:bg-gray-100 flex items-center justify-center gap-2 text-xs font-bold text-gray-700">
+                          {uploadingHero ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 animate-spin text-[#C5A880]" />
+                              <span>Uploading Hero Image...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-4 h-4 text-[#C5A880]" />
+                              <span>{siteForm.heroImageUrl ? 'Change Hero Image' : 'Upload Hero Image'}</span>
+                            </>
+                          )}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleUploadSiteImage(e, 'heroImageUrl', setUploadingHero)}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        value={siteForm.heroImageUrl || ''}
+                        onChange={(e) => setSiteForm({ ...siteForm, heroImageUrl: e.target.value })}
+                        placeholder="or paste image URL"
+                        className="w-full px-3 py-1.5 border rounded-lg text-gray-500 text-[11px]"
+                      />
+                    </div>
                   </div>
 
                   <div>
@@ -1207,17 +1306,48 @@ export default function AdminClient({
                     />
                   </div>
 
+                  {/* SEO Social OpenGraph Image Upload */}
                   <div>
                     <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                      Social OpenGraph Image URL
+                      Social OpenGraph Preview Image Upload
                     </label>
-                    <input
-                      type="text"
-                      value={siteForm.seoOgImage || ''}
-                      onChange={(e) => setSiteForm({ ...siteForm, seoOgImage: e.target.value })}
-                      placeholder="https://... image link for Facebook/Telegram preview"
-                      className="w-full px-3 py-2.5 border rounded-xl"
-                    />
+                    <div className="space-y-2">
+                      {siteForm.seoOgImage && (
+                        <div className="relative w-full h-24 rounded-xl overflow-hidden border border-[#E7E2DA]">
+                          <img
+                            src={siteForm.seoOgImage}
+                            alt="Social Preview"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+                      <label className="w-full px-4 py-2.5 bg-[#FAF8F5] border border-[#E7E2DA] rounded-xl cursor-pointer hover:bg-gray-100 flex items-center justify-center gap-2 text-xs font-bold text-gray-700">
+                        {uploadingOg ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin text-[#C5A880]" />
+                            <span>Uploading Social Image...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4 text-[#0088cc]" />
+                            <span>{siteForm.seoOgImage ? 'Change Social Card Image' : 'Upload Social Card Image'}</span>
+                          </>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleUploadSiteImage(e, 'seoOgImage', setUploadingOg)}
+                          className="hidden"
+                        />
+                      </label>
+                      <input
+                        type="text"
+                        value={siteForm.seoOgImage || ''}
+                        onChange={(e) => setSiteForm({ ...siteForm, seoOgImage: e.target.value })}
+                        placeholder="or paste image URL"
+                        className="w-full px-3 py-1.5 border rounded-lg text-gray-500 text-[11px]"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -1353,17 +1483,48 @@ export default function AdminClient({
                     />
                   </div>
 
+                  {/* Promo Ad Banner Image Upload */}
                   <div>
                     <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                      Banner Image URL
+                      Promo Ad Banner Image Upload
                     </label>
-                    <input
-                      type="text"
-                      value={siteForm.promoBannerImage || ''}
-                      onChange={(e) => setSiteForm({ ...siteForm, promoBannerImage: e.target.value })}
-                      placeholder="https://..."
-                      className="w-full px-3 py-2.5 border rounded-xl"
-                    />
+                    <div className="space-y-2">
+                      {siteForm.promoBannerImage && (
+                        <div className="relative w-full h-24 rounded-xl overflow-hidden border border-[#E7E2DA]">
+                          <img
+                            src={siteForm.promoBannerImage}
+                            alt="Banner Preview"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+                      <label className="w-full px-4 py-2.5 bg-[#FAF8F5] border border-[#E7E2DA] rounded-xl cursor-pointer hover:bg-gray-100 flex items-center justify-center gap-2 text-xs font-bold text-gray-700">
+                        {uploadingPromo ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin text-[#C5A880]" />
+                            <span>Uploading Promo Image...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4 text-amber-600" />
+                            <span>{siteForm.promoBannerImage ? 'Change Banner Image' : 'Upload Banner Image'}</span>
+                          </>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleUploadSiteImage(e, 'promoBannerImage', setUploadingPromo)}
+                          className="hidden"
+                        />
+                      </label>
+                      <input
+                        type="text"
+                        value={siteForm.promoBannerImage || ''}
+                        onChange={(e) => setSiteForm({ ...siteForm, promoBannerImage: e.target.value })}
+                        placeholder="or paste image URL"
+                        className="w-full px-3 py-1.5 border rounded-lg text-gray-500 text-[11px]"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -1411,9 +1572,19 @@ export default function AdminClient({
 
               {/* SECTION 5: INSTAGRAM SHOWCASE */}
               <div className="space-y-4 border-b border-[#E7E2DA] pb-6">
-                <h4 className="font-bold text-sm text-[#1A1A1A] uppercase tracking-wider flex items-center gap-2">
-                  <Camera className="w-4 h-4 text-purple-600" /> Instagram Editorial Showcase
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-sm text-[#1A1A1A] uppercase tracking-wider flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-purple-600" /> Dynamic Instagram Showcase Photos
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={handleAddIgSlot}
+                    className="px-3 py-1.5 bg-[#FAF8F5] border border-[#E7E2DA] rounded-xl text-xs font-bold text-purple-700 hover:bg-purple-50 flex items-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Photo Slot</span>
+                  </button>
+                </div>
 
                 <div>
                   <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
@@ -1426,6 +1597,56 @@ export default function AdminClient({
                     placeholder="@HIWI.FASHION"
                     className="w-full px-3 py-2.5 border rounded-xl font-bold text-purple-600"
                   />
+                </div>
+
+                {/* Photo Grid with Direct Uploads per item */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 pt-2">
+                  {(siteForm.instagramImages && siteForm.instagramImages.length > 0
+                    ? siteForm.instagramImages
+                    : [
+                        'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&q=80&w=600',
+                        'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=600',
+                        'https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&q=80&w=600',
+                        'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&q=80&w=600',
+                        'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&q=80&w=600',
+                        'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?auto=format&fit=crop&q=80&w=600',
+                      ]
+                  ).map((imgUrl, idx) => (
+                    <div key={idx} className="relative bg-white p-2 rounded-2xl border border-[#E7E2DA] space-y-2 group">
+                      <div className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 border border-gray-200">
+                        {imgUrl ? (
+                          <img src={imgUrl} alt={`IG ${idx + 1}`} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
+                            Empty
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveIgSlot(idx)}
+                          className="absolute top-1 right-1 p-1 rounded-full bg-red-600 text-white opacity-80 hover:opacity-100 shadow-sm"
+                          title="Remove Photo"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      <label className="w-full py-1.5 bg-[#FAF8F5] border border-[#E7E2DA] rounded-xl cursor-pointer hover:bg-gray-100 flex items-center justify-center gap-1 text-[10px] font-bold text-gray-700">
+                        {uploadingIgIndex === idx ? (
+                          <RefreshCw className="w-3 h-3 animate-spin text-purple-600" />
+                        ) : (
+                          <Upload className="w-3 h-3 text-purple-600" />
+                        )}
+                        <span>{imgUrl ? 'Change' : 'Upload'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleUploadIgImage(e, idx)}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  ))}
                 </div>
               </div>
 

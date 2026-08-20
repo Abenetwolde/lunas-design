@@ -24,8 +24,54 @@ CREATE TABLE IF NOT EXISTS public.site_settings (
     footer_about_text TEXT DEFAULT 'Hiwi Fashion offers handcrafted authentic Habesha Kemis, modern Ethiopian evening gowns, Shemma Netela scarves, and artisanal leather fashion.',
     footer_copyright VARCHAR(255) DEFAULT '© 2026 Hiwi Fashion. All rights reserved. Addis Ababa, Ethiopia.',
     free_shipping_threshold DECIMAL(10, 2) DEFAULT 2500.00,
+    seo_title TEXT,
+    seo_description TEXT,
+    seo_keywords TEXT,
+    seo_og_image TEXT,
+    mini_card1_title TEXT,
+    mini_card1_desc TEXT,
+    mini_card2_title TEXT,
+    mini_card2_desc TEXT,
+    mini_card3_title TEXT,
+    mini_card3_desc TEXT,
+    mini_card4_title TEXT,
+    mini_card4_desc TEXT,
+    promo_banner_headline TEXT,
+    promo_banner_subtitle TEXT,
+    promo_banner_image TEXT,
+    promo_banner_cta_text TEXT,
+    promo_banner_cta_link TEXT,
+    instagram_handle TEXT,
+    instagram_images TEXT[],
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
+
+-- Ensure all columns exist on existing table instances
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(50);
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS contact_email VARCHAR(255);
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS store_location VARCHAR(255);
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS footer_about_text TEXT;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS footer_copyright VARCHAR(255);
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS free_shipping_threshold DECIMAL(10, 2);
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS seo_title TEXT;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS seo_description TEXT;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS seo_keywords TEXT;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS seo_og_image TEXT;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS mini_card1_title TEXT;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS mini_card1_desc TEXT;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS mini_card2_title TEXT;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS mini_card2_desc TEXT;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS mini_card3_title TEXT;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS mini_card3_desc TEXT;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS mini_card4_title TEXT;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS mini_card4_desc TEXT;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS promo_banner_headline TEXT;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS promo_banner_subtitle TEXT;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS promo_banner_image TEXT;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS promo_banner_cta_text TEXT;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS promo_banner_cta_link TEXT;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS instagram_handle TEXT;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS instagram_images TEXT[];
 
 -- Seed default site settings
 INSERT INTO public.site_settings (id, site_name, tagline, announcement_bar, hero_headline, hero_subtitle, hero_image_url, hero_cta_text, telegram_username, contact_email, footer_about_text, footer_copyright)

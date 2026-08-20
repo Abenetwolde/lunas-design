@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Product, CartItem, ColorOption, SiteSettings } from '../types';
 import { getSiteSettings, updateSiteSettings, DEFAULT_SITE_SETTINGS } from '../lib/supabase';
+import { translations, Language } from '../lib/translations';
 
 interface StoreContextType {
   cart: CartItem[];
@@ -22,6 +23,10 @@ interface StoreContextType {
   setIsCartOpen: (open: boolean) => void;
   isWishlistOpen: boolean;
   setIsWishlistOpen: (open: boolean) => void;
+  // Localization
+  language: Language;
+  setLanguage: (lang: Language) => void;
+  t: (key: keyof typeof translations.en) => string;
   // Order Modal state
   telegramModalProduct: Product | null;
   selectedModalColor: ColorOption | null;
@@ -44,6 +49,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
   const [isSqlModalOpen, setIsSqlModalOpen] = useState(false);
+  const [language, setLanguageState] = useState<Language>('en');
+
+  const setLanguage = (lang: Language) => {
+    setLanguageState(lang);
+    try {
+      localStorage.setItem('hiwi_lang', lang);
+    } catch (e) {}
+  };
+
+  const t = (key: keyof typeof translations.en): string => {
+    const dict = translations[language] || translations.en;
+    return dict[key] || translations.en[key] || String(key);
+  };
 
   // Telegram order modal state
   const [isTelegramModalOpen, setIsTelegramModalOpen] = useState(false);
@@ -76,6 +94,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       const savedTg = localStorage.getItem('hiwi_tg_username');
       if (savedTg) setTelegramUsernameState(savedTg);
+
+      const savedLang = localStorage.getItem('hiwi_lang') as Language;
+      if (savedLang && (savedLang === 'en' || savedLang === 'am')) setLanguageState(savedLang);
     } catch (e) {
       console.error(e);
     }
@@ -197,6 +218,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setIsCartOpen,
         isWishlistOpen,
         setIsWishlistOpen,
+        language,
+        setLanguage,
+        t,
         telegramModalProduct,
         selectedModalColor,
         selectedModalSize,

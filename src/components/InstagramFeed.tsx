@@ -5,7 +5,7 @@ import { Camera } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 
 export const InstagramFeed: React.FC = () => {
-  const { siteSettings } = useStore();
+  const { siteSettings, t } = useStore();
 
   const posts = siteSettings.instagramImages && siteSettings.instagramImages.length > 0
     ? siteSettings.instagramImages
@@ -29,10 +29,10 @@ export const InstagramFeed: React.FC = () => {
         <div className="flex items-center justify-between mb-8">
           <div>
             <span className="text-xs font-semibold uppercase tracking-[0.25em] text-[#C5A880]">
-              Editorial Community
+              {t('editorialCommunity')}
             </span>
             <h3 className="font-serif text-2xl sm:text-3xl text-[#1A1A1A] font-light mt-0.5">
-              Follow {siteSettings.siteName || 'Hiwi Fashion'} on Instagram
+              {t('followInstagram')}
             </h3>
           </div>
           <a

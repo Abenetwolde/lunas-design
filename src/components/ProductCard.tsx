@@ -11,7 +11,7 @@ interface ProductCardProps {
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
-  const { openTelegramModal, toggleWishlist, isInWishlist } = useStore();
+  const { openTelegramModal, toggleWishlist, isInWishlist, t } = useStore();
   const [selectedColor, setSelectedColor] = useState<ColorOption>(
     product.colors && product.colors.length > 0 ? product.colors[0] : { name: 'Standard', hex: '#1A1A1A' }
   );
@@ -157,7 +157,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           }`}
         >
           <Send className="w-3.5 h-3.5" />
-          <span>{isInStock ? 'Select & Buy' : 'Out of Stock'}</span>
+          <span>{isInStock ? t('selectAndBuy') : t('outOfStock')}</span>
         </button>
 
       </div>

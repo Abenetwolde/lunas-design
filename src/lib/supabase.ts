@@ -180,17 +180,20 @@ export async function updateSiteSettings(settings: Partial<SiteSettings>): Promi
     if (updated.instagramImages !== undefined) payload.instagram_images = updated.instagramImages;
 
     let attempts = 0;
-    while (attempts < 3) {
+    while (attempts < 30) {
       let { error } = await supabase.from('site_settings').upsert([payload]);
       if (!error) break;
 
       if (error && (error.code === 'PGRST204' || error.message.includes('Could not find') || error.message.includes('column'))) {
-        console.warn(`PGRST204 attempt ${attempts + 1} for site_settings stripping missing columns:`, error.message);
+        console.warn(`PGRST204 attempt ${attempts + 1} for site_settings:`, error.message);
         const match = error.message.match(/Could not find the '([^']+)' column/i) || error.message.match(/Could not find the "([^"]+)" column/i);
         if (match && match[1]) {
           delete payload[match[1]];
         } else {
-          // Delete optional dynamic fields if not present in schema
+          // Delete all extended fields as safety fallback
+          delete payload.contact_email;
+          delete payload.contact_phone;
+          delete payload.store_location;
           delete payload.seo_title;
           delete payload.seo_description;
           delete payload.seo_keywords;
@@ -220,6 +223,11 @@ export async function updateSiteSettings(settings: Partial<SiteSettings>): Promi
   } catch (err) {}
 
   inMemorySiteSettings = updated;
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('hiwi_site_settings', JSON.stringify(updated));
+    }
+  } catch (e) {}
   return { success: true, data: updated };
 }
 

@@ -33,6 +33,9 @@ export const Header: React.FC = () => {
     setIsCartOpen,
     setIsWishlistOpen,
     setIsSqlModalOpen,
+    language,
+    setLanguage,
+    t,
   } = useStore();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -63,12 +66,12 @@ export const Header: React.FC = () => {
   };
 
   const navLinks = [
-    { name: 'Home', href: '/' },
-    { name: 'Catalog', href: '/catalog' },
-    { name: 'Habesha Kemis', href: '/catalog?category=dresses' },
-    { name: 'Tops', href: '/catalog?category=tops' },
-    { name: 'Netela & Accessories', href: '/catalog?category=accessories' },
-    { name: 'Footwear', href: '/catalog?category=shoes' },
+    { name: t('navHome'), href: '/' },
+    { name: t('navCatalog'), href: '/catalog' },
+    { name: t('navDresses'), href: '/catalog?category=dresses' },
+    { name: t('navTops'), href: '/catalog?category=tops' },
+    { name: t('navNetela'), href: '/catalog?category=accessories' },
+    { name: t('navShoes'), href: '/catalog?category=shoes' },
   ];
 
   return (
@@ -77,11 +80,11 @@ export const Header: React.FC = () => {
       <div className="bg-[#1A1A1A] text-[#FAF8F5] text-[11px] font-medium py-2 px-4 tracking-wider uppercase flex items-center justify-between">
         <div className="mx-auto flex items-center gap-6 overflow-hidden whitespace-nowrap text-center">
           <span className="flex items-center gap-1.5 text-[#C5A880]">
-            <Sparkles className="w-3 h-3" /> {siteSettings.announcementBar || 'FREE DELIVERY IN ADDIS ABABA OVER ETB 2,500'}
+            <Sparkles className="w-3 h-3" /> {siteSettings.announcementBar || t('announcementDefault')}
           </span>
           <span className="hidden md:inline text-gray-500">|</span>
           <span className="flex items-center gap-1">
-            <Send className="w-3 h-3 text-[#0088cc]" /> DIRECT TELEGRAM INBOX: @{telegramUsername}
+            <Send className="w-3 h-3 text-[#0088cc]" /> {t('announcementSub')} @{telegramUsername}
           </span>
         </div>
       </div>
@@ -132,6 +135,32 @@ export const Header: React.FC = () => {
 
           {/* Header Action Icons */}
           <div className="flex items-center space-x-2 sm:space-x-3">
+
+            {/* Language Selector Switcher (🇬🇧 EN / 🇪🇹 AM) */}
+            <div className="flex items-center bg-[#FAF8F5] border border-[#E7E2DA] rounded-full p-1 shadow-sm">
+              <button
+                onClick={() => setLanguage('en')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-full transition-all ${
+                  language === 'en'
+                    ? 'bg-[#1A1A1A] text-white shadow-xs'
+                    : 'text-gray-500 hover:text-black'
+                }`}
+                title="English"
+              >
+                🇬🇧 EN
+              </button>
+              <button
+                onClick={() => setLanguage('am')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-full transition-all ${
+                  language === 'am'
+                    ? 'bg-[#1A1A1A] text-white shadow-xs'
+                    : 'text-gray-500 hover:text-black'
+                }`}
+                title="አማርኛ (Amharic)"
+              >
+                🇪🇹 AM
+              </button>
+            </div>
             
             {/* CONDITIONAL "GO TO ADMIN" BUTTON (Only shown when admin session is active) */}
             {isAdminLoggedIn && (
@@ -141,7 +170,7 @@ export const Header: React.FC = () => {
                 title="Go to Admin Dashboard"
               >
                 <ShieldCheck className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Go to Admin</span>
+                <span className="hidden sm:inline">{t('navAdmin')}</span>
               </Link>
             )}
 

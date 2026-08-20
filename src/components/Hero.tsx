@@ -6,7 +6,7 @@ import { ArrowRight, Sparkles, Send, RefreshCw } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 
 export const Hero: React.FC = () => {
-  const { siteSettings, telegramUsername } = useStore();
+  const { siteSettings, telegramUsername, t } = useStore();
   const [imgLoaded, setImgLoaded] = useState(false);
 
   const heroImageSrc = siteSettings.heroImageUrl || '';
@@ -55,12 +55,12 @@ export const Hero: React.FC = () => {
 
           {/* Dynamic Headline */}
           <h1 className="font-serif text-4xl sm:text-6xl lg:text-7xl font-light text-[#1A1A1A] leading-[1.1] tracking-tight">
-            {siteSettings.heroHeadline || 'Everyday Habesha Style'}
+            {siteSettings.heroHeadline || t('everydayStyle')}
           </h1>
 
           {/* Dynamic Subtitle */}
           <p className="text-sm sm:text-lg text-gray-700 font-light leading-relaxed max-w-md">
-            {siteSettings.heroSubtitle || 'Handcrafted Ethiopian Kemis dresses, fine cotton Shemma scarves, and modern tailored silhouettes.'}
+            {siteSettings.heroSubtitle || t('heroDesc')}
           </p>
 
           {/* CTAs */}
@@ -69,7 +69,7 @@ export const Hero: React.FC = () => {
               href="/catalog"
               className="px-6 sm:px-8 py-3.5 sm:py-4 bg-[#1A1A1A] text-white text-xs font-bold uppercase tracking-widest hover:bg-[#C5A880] transition-all shadow-lg flex items-center gap-3 group rounded-xl sm:rounded-none"
             >
-              <span>{siteSettings.heroCtaText || 'SHOP CATALOG'}</span>
+              <span>{siteSettings.heroCtaText || t('shopCatalog')}</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
 
@@ -77,7 +77,7 @@ export const Hero: React.FC = () => {
               href="/catalog?category=dresses"
               className="px-6 sm:px-8 py-3.5 sm:py-4 bg-white/90 backdrop-blur-md text-[#1A1A1A] text-xs font-bold uppercase tracking-widest border border-[#1A1A1A] hover:bg-[#1A1A1A] hover:text-white transition-all shadow-sm rounded-xl sm:rounded-none"
             >
-              HABESHA KEMIS
+              {t('habeshaKemisBtn')}
             </Link>
           </div>
 
@@ -86,7 +86,7 @@ export const Hero: React.FC = () => {
             <div className="w-8 h-8 rounded-full bg-[#0088cc]/10 flex items-center justify-center text-[#0088cc] shrink-0">
               <Send className="w-4 h-4" />
             </div>
-            <span>Inquire & buy directly in ETB via <strong>@{telegramUsername}</strong></span>
+            <span>{t('directInquire')} <strong>@{telegramUsername}</strong></span>
           </div>
 
         </div>

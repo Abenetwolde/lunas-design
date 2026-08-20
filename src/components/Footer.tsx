@@ -8,7 +8,7 @@ import { useStore } from '../context/StoreContext';
 
 export const Footer: React.FC = () => {
   const pathname = usePathname();
-  const { telegramUsername, siteSettings, setIsSqlModalOpen } = useStore();
+  const { telegramUsername, siteSettings, setIsSqlModalOpen, t } = useStore();
 
   if (pathname?.startsWith('/admin')) {
     return null;
@@ -43,7 +43,7 @@ export const Footer: React.FC = () => {
               className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0088cc]/20 text-[#0088cc] border border-[#0088cc]/30 font-bold hover:bg-[#0088cc]/30 transition-colors"
             >
               <Send className="w-4 h-4" />
-              <span>Direct Telegram Inquiry: @{telegramUsername}</span>
+              <span>{t('announcementSub')} @{telegramUsername}</span>
             </a>
 
             {/* Contact Details */}
@@ -69,26 +69,26 @@ export const Footer: React.FC = () => {
 
           {/* Column 1: Shop */}
           <div className="space-y-3">
-            <h4 className="font-bold text-[#C5A880] uppercase tracking-widest">SHOP</h4>
+            <h4 className="font-bold text-[#C5A880] uppercase tracking-widest">{t('navCatalog')}</h4>
             <ul className="space-y-2 text-gray-400 font-light">
               <li>
                 <Link href="/catalog?category=dresses" className="hover:text-white transition-colors">
-                  Habesha Kemis & Dresses
+                  {t('navDresses')}
                 </Link>
               </li>
               <li>
                 <Link href="/catalog?category=tops" className="hover:text-white transition-colors">
-                  Tops & Blazers
+                  {t('navTops')}
                 </Link>
               </li>
               <li>
                 <Link href="/catalog?category=accessories" className="hover:text-white transition-colors">
-                  Netela & Accessories
+                  {t('navNetela')}
                 </Link>
               </li>
               <li>
                 <Link href="/catalog?category=shoes" className="hover:text-white transition-colors">
-                  Handmade Footwear
+                  {t('navShoes')}
                 </Link>
               </li>
             </ul>
@@ -96,21 +96,21 @@ export const Footer: React.FC = () => {
 
           {/* Column 2: Customer Care */}
           <div className="space-y-3">
-            <h4 className="font-bold text-[#C5A880] uppercase tracking-widest">CUSTOMER CARE</h4>
+            <h4 className="font-bold text-[#C5A880] uppercase tracking-widest">{t('customerCare')}</h4>
             <ul className="space-y-2 text-gray-400 font-light">
               <li>
                 <a href={`https://t.me/${telegramUsername}`} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
-                  Direct Buying & Inquiry Guide
+                  {t('directBuyingGuide')}
                 </a>
               </li>
               <li>
                 <Link href="/catalog" className="hover:text-white transition-colors">
-                  Addis Ababa Delivery
+                  {t('addisAbabaDelivery')}
                 </Link>
               </li>
               <li>
                 <Link href="/catalog" className="hover:text-white transition-colors">
-                  Size & Fit Customization
+                  {t('sizeFitCustomization')}
                 </Link>
               </li>
             </ul>
@@ -118,7 +118,7 @@ export const Footer: React.FC = () => {
 
           {/* Column 3: Atelier */}
           <div className="space-y-3">
-            <h4 className="font-bold text-[#C5A880] uppercase tracking-widest">ATELIER</h4>
+            <h4 className="font-bold text-[#C5A880] uppercase tracking-widest">{t('atelier')}</h4>
             <ul className="space-y-2 text-gray-400 font-light">
               <li>
                 <Link href="/" className="hover:text-white transition-colors">
