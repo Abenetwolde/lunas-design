@@ -543,7 +543,7 @@ export const CatalogSection: React.FC<CatalogSectionProps> = ({
                             className="px-5 py-2.5 bg-[#0088cc] text-white text-xs font-bold rounded-xl hover:bg-[#0077b3] transition-colors flex items-center gap-2"
                           >
                             <Send className="w-4 h-4" />
-                            <span>Telegram Order</span>
+                            <span>Select & Buy</span>
                           </button>
                         </div>
                       </div>

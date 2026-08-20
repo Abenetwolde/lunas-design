@@ -2,28 +2,31 @@
 
 import React from 'react';
 import { Truck, ShieldCheck, RefreshCw, Headset } from 'lucide-react';
+import { useStore } from '../context/StoreContext';
 
 export const FeatureBar: React.FC = () => {
+  const { siteSettings } = useStore();
+
   const features = [
     {
       icon: Truck,
-      title: 'LOCAL DELIVERY',
-      description: 'Free in Addis Ababa over ETB 2,500',
+      title: siteSettings.miniCard1Title || 'LOCAL DELIVERY',
+      description: siteSettings.miniCard1Desc || 'Free in Addis Ababa over ETB 2,500',
     },
     {
       icon: ShieldCheck,
-      title: 'DIRECT TELEGRAM ORDER',
-      description: '100% instant inbox order confirmation',
+      title: siteSettings.miniCard2Title || 'DIRECT INQUIRE & BUY',
+      description: siteSettings.miniCard2Desc || '100% instant inbox order confirmation',
     },
     {
       icon: RefreshCw,
-      title: 'FITTING GUARANTEE',
-      description: 'Easy exchange & size customization',
+      title: siteSettings.miniCard3Title || 'FITTING GUARANTEE',
+      description: siteSettings.miniCard3Desc || 'Easy exchange & size customization',
     },
     {
       icon: Headset,
-      title: 'TELEGRAM CONCIERGE',
-      description: '24/7 direct seller support in ETB',
+      title: siteSettings.miniCard4Title || 'CUSTOMER CONCIERGE',
+      description: siteSettings.miniCard4Desc || '24/7 direct seller support in ETB',
     },
   ];
 

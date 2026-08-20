@@ -54,6 +54,9 @@ import {
   MapPin,
   Star,
   Palette,
+  Globe,
+  Camera,
+  Truck,
   Image as ImageIcon,
 } from 'lucide-react';
 
@@ -1080,168 +1083,437 @@ export default function AdminClient({
               </p>
             </div>
 
-            <form onSubmit={handleSaveSiteSettings} className="space-y-6 text-xs">
+            <form onSubmit={handleSaveSiteSettings} className="space-y-8 text-xs">
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                    Store Brand Name
-                  </label>
-                  <input
-                    type="text"
-                    value={siteForm.siteName}
-                    onChange={(e) => setSiteForm({ ...siteForm, siteName: e.target.value })}
-                    className="w-full px-3 py-2.5 border rounded-xl font-bold"
-                  />
-                </div>
+              {/* SECTION 1: BRAND & HERO SETTINGS */}
+              <div className="space-y-4 border-b border-[#E7E2DA] pb-6">
+                <h4 className="font-bold text-sm text-[#1A1A1A] uppercase tracking-wider flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-[#C5A880]" /> Brand Identity & Hero Section
+                </h4>
 
-                <div>
-                  <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                    Tagline Subtitle
-                  </label>
-                  <input
-                    type="text"
-                    value={siteForm.tagline}
-                    onChange={(e) => setSiteForm({ ...siteForm, tagline: e.target.value })}
-                    className="w-full px-3 py-2.5 border rounded-xl"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                  Top Announcement Bar Message
-                </label>
-                <input
-                  type="text"
-                  value={siteForm.announcementBar}
-                  onChange={(e) => setSiteForm({ ...siteForm, announcementBar: e.target.value })}
-                  className="w-full px-3 py-2.5 border rounded-xl"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                  Hero Headline Title
-                </label>
-                <input
-                  type="text"
-                  value={siteForm.heroHeadline}
-                  onChange={(e) => setSiteForm({ ...siteForm, heroHeadline: e.target.value })}
-                  className="w-full px-3 py-2.5 border rounded-xl font-serif text-base font-bold"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                  Hero Subtitle Description
-                </label>
-                <textarea
-                  rows={2}
-                  value={siteForm.heroSubtitle}
-                  onChange={(e) => setSiteForm({ ...siteForm, heroSubtitle: e.target.value })}
-                  className="w-full px-3 py-2.5 border rounded-xl"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                    Hero Image URL
-                  </label>
-                  <input
-                    type="text"
-                    value={siteForm.heroImageUrl}
-                    onChange={(e) => setSiteForm({ ...siteForm, heroImageUrl: e.target.value })}
-                    className="w-full px-3 py-2.5 border rounded-xl"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                    Telegram Seller Handle
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-gray-400 font-bold">@</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                      Store Brand Name
+                    </label>
                     <input
                       type="text"
-                      value={siteForm.telegramUsername}
-                      onChange={(e) => setSiteForm({ ...siteForm, telegramUsername: e.target.value })}
-                      className="w-full pl-7 pr-3 py-2.5 border rounded-xl font-bold text-[#0088cc]"
+                      value={siteForm.siteName || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, siteName: e.target.value })}
+                      className="w-full px-3 py-2.5 border rounded-xl font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                      Tagline Subtitle
+                    </label>
+                    <input
+                      type="text"
+                      value={siteForm.tagline || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, tagline: e.target.value })}
+                      className="w-full px-3 py-2.5 border rounded-xl"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                    Top Announcement Bar Message
+                  </label>
+                  <input
+                    type="text"
+                    value={siteForm.announcementBar || ''}
+                    onChange={(e) => setSiteForm({ ...siteForm, announcementBar: e.target.value })}
+                    className="w-full px-3 py-2.5 border rounded-xl"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                    Hero Headline Title
+                  </label>
+                  <input
+                    type="text"
+                    value={siteForm.heroHeadline || ''}
+                    onChange={(e) => setSiteForm({ ...siteForm, heroHeadline: e.target.value })}
+                    className="w-full px-3 py-2.5 border rounded-xl font-serif text-base font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                    Hero Subtitle Description
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={siteForm.heroSubtitle || ''}
+                    onChange={(e) => setSiteForm({ ...siteForm, heroSubtitle: e.target.value })}
+                    className="w-full px-3 py-2.5 border rounded-xl"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                      Hero Image URL
+                    </label>
+                    <input
+                      type="text"
+                      value={siteForm.heroImageUrl || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, heroImageUrl: e.target.value })}
+                      placeholder="https://... or upload image"
+                      className="w-full px-3 py-2.5 border rounded-xl"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                      Telegram Seller Handle
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-gray-400 font-bold">@</span>
+                      <input
+                        type="text"
+                        value={siteForm.telegramUsername || ''}
+                        onChange={(e) => setSiteForm({ ...siteForm, telegramUsername: e.target.value })}
+                        className="w-full pl-7 pr-3 py-2.5 border rounded-xl font-bold text-[#0088cc]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 2: SEO & METADATA CONFIGURATION */}
+              <div className="space-y-4 border-b border-[#E7E2DA] pb-6">
+                <h4 className="font-bold text-sm text-[#1A1A1A] uppercase tracking-wider flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-[#0088cc]" /> SEO & Search Engine Optimization
+                </h4>
+                <p className="text-gray-500 text-[11px]">
+                  Custom meta titles, descriptions, keywords, and social preview images for search engines (Google, Bing) and social platforms.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                      SEO Meta Title
+                    </label>
+                    <input
+                      type="text"
+                      value={siteForm.seoTitle || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, seoTitle: e.target.value })}
+                      placeholder="Hiwi Fashion | Authentic Habesha Kemis & Modern Atelier (ETB)"
+                      className="w-full px-3 py-2.5 border rounded-xl font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                      Social OpenGraph Image URL
+                    </label>
+                    <input
+                      type="text"
+                      value={siteForm.seoOgImage || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, seoOgImage: e.target.value })}
+                      placeholder="https://... image link for Facebook/Telegram preview"
+                      className="w-full px-3 py-2.5 border rounded-xl"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                    SEO Meta Description
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={siteForm.seoDescription || ''}
+                    onChange={(e) => setSiteForm({ ...siteForm, seoDescription: e.target.value })}
+                    placeholder="Handcrafted Habesha Kemis dresses, fine Shemma Netelas, and modern fashion garments in Ethiopia."
+                    className="w-full px-3 py-2.5 border rounded-xl"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                    SEO Keywords (Comma Separated)
+                  </label>
+                  <input
+                    type="text"
+                    value={siteForm.seoKeywords || ''}
+                    onChange={(e) => setSiteForm({ ...siteForm, seoKeywords: e.target.value })}
+                    placeholder="habesha kemis, ethiopian dress, shemma netela, etb fashion"
+                    className="w-full px-3 py-2.5 border rounded-xl"
+                  />
+                </div>
+              </div>
+
+              {/* SECTION 3: DYNAMIC MINI CARDS (FEATURE HIGHLIGHTS) */}
+              <div className="space-y-4 border-b border-[#E7E2DA] pb-6">
+                <h4 className="font-bold text-sm text-[#1A1A1A] uppercase tracking-wider flex items-center gap-2">
+                  <Truck className="w-4 h-4 text-emerald-600" /> Homepage Feature Bar (4 Mini Cards)
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Card 1 */}
+                  <div className="p-3.5 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA] space-y-2">
+                    <span className="font-bold text-gray-700 block">Mini Card 1</span>
+                    <input
+                      type="text"
+                      value={siteForm.miniCard1Title || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, miniCard1Title: e.target.value })}
+                      placeholder="LOCAL DELIVERY"
+                      className="w-full px-3 py-2 border rounded-xl font-bold"
+                    />
+                    <input
+                      type="text"
+                      value={siteForm.miniCard1Desc || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, miniCard1Desc: e.target.value })}
+                      placeholder="Free in Addis Ababa over ETB 2,500"
+                      className="w-full px-3 py-2 border rounded-xl text-gray-600"
+                    />
+                  </div>
+
+                  {/* Card 2 */}
+                  <div className="p-3.5 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA] space-y-2">
+                    <span className="font-bold text-gray-700 block">Mini Card 2</span>
+                    <input
+                      type="text"
+                      value={siteForm.miniCard2Title || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, miniCard2Title: e.target.value })}
+                      placeholder="DIRECT INQUIRE & BUY"
+                      className="w-full px-3 py-2 border rounded-xl font-bold"
+                    />
+                    <input
+                      type="text"
+                      value={siteForm.miniCard2Desc || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, miniCard2Desc: e.target.value })}
+                      placeholder="100% instant inbox order confirmation"
+                      className="w-full px-3 py-2 border rounded-xl text-gray-600"
+                    />
+                  </div>
+
+                  {/* Card 3 */}
+                  <div className="p-3.5 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA] space-y-2">
+                    <span className="font-bold text-gray-700 block">Mini Card 3</span>
+                    <input
+                      type="text"
+                      value={siteForm.miniCard3Title || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, miniCard3Title: e.target.value })}
+                      placeholder="FITTING GUARANTEE"
+                      className="w-full px-3 py-2 border rounded-xl font-bold"
+                    />
+                    <input
+                      type="text"
+                      value={siteForm.miniCard3Desc || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, miniCard3Desc: e.target.value })}
+                      placeholder="Easy exchange & size customization"
+                      className="w-full px-3 py-2 border rounded-xl text-gray-600"
+                    />
+                  </div>
+
+                  {/* Card 4 */}
+                  <div className="p-3.5 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA] space-y-2">
+                    <span className="font-bold text-gray-700 block">Mini Card 4</span>
+                    <input
+                      type="text"
+                      value={siteForm.miniCard4Title || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, miniCard4Title: e.target.value })}
+                      placeholder="CUSTOMER CONCIERGE"
+                      className="w-full px-3 py-2 border rounded-xl font-bold"
+                    />
+                    <input
+                      type="text"
+                      value={siteForm.miniCard4Desc || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, miniCard4Desc: e.target.value })}
+                      placeholder="24/7 direct seller support in ETB"
+                      className="w-full px-3 py-2 border rounded-xl text-gray-600"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-[#E7E2DA]">
+              {/* SECTION 4: DYNAMIC PROMO AD BANNER */}
+              <div className="space-y-4 border-b border-[#E7E2DA] pb-6">
+                <h4 className="font-bold text-sm text-[#1A1A1A] uppercase tracking-wider flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-amber-600" /> Dynamic Promo Ad Banner
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                      Banner Headline
+                    </label>
+                    <input
+                      type="text"
+                      value={siteForm.promoBannerHeadline || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, promoBannerHeadline: e.target.value })}
+                      placeholder="Crafted for Every Special Moment"
+                      className="w-full px-3 py-2.5 border rounded-xl font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                      Banner Image URL
+                    </label>
+                    <input
+                      type="text"
+                      value={siteForm.promoBannerImage || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, promoBannerImage: e.target.value })}
+                      placeholder="https://..."
+                      className="w-full px-3 py-2.5 border rounded-xl"
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                    Contact Phone
+                    Banner Subtitle
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={siteForm.promoBannerSubtitle || ''}
+                    onChange={(e) => setSiteForm({ ...siteForm, promoBannerSubtitle: e.target.value })}
+                    placeholder="From traditional Ethiopian celebrations to casual everyday wear."
+                    className="w-full px-3 py-2.5 border rounded-xl"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                      Button CTA Text
+                    </label>
+                    <input
+                      type="text"
+                      value={siteForm.promoBannerCtaText || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, promoBannerCtaText: e.target.value })}
+                      placeholder="DISCOVER COLLECTION"
+                      className="w-full px-3 py-2.5 border rounded-xl font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                      Button CTA Link
+                    </label>
+                    <input
+                      type="text"
+                      value={siteForm.promoBannerCtaLink || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, promoBannerCtaLink: e.target.value })}
+                      placeholder="/catalog"
+                      className="w-full px-3 py-2.5 border rounded-xl"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 5: INSTAGRAM SHOWCASE */}
+              <div className="space-y-4 border-b border-[#E7E2DA] pb-6">
+                <h4 className="font-bold text-sm text-[#1A1A1A] uppercase tracking-wider flex items-center gap-2">
+                  <Camera className="w-4 h-4 text-purple-600" /> Instagram Editorial Showcase
+                </h4>
+
+                <div>
+                  <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                    Instagram Account Handle
                   </label>
                   <input
                     type="text"
-                    value={siteForm.contactPhone}
-                    onChange={(e) => setSiteForm({ ...siteForm, contactPhone: e.target.value })}
-                    className="w-full px-3 py-2.5 border rounded-xl"
+                    value={siteForm.instagramHandle || ''}
+                    onChange={(e) => setSiteForm({ ...siteForm, instagramHandle: e.target.value })}
+                    placeholder="@HIWI.FASHION"
+                    className="w-full px-3 py-2.5 border rounded-xl font-bold text-purple-600"
                   />
+                </div>
+              </div>
+
+              {/* SECTION 6: CONTACT & FOOTER */}
+              <div className="space-y-4">
+                <h4 className="font-bold text-sm text-[#1A1A1A] uppercase tracking-wider flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-blue-600" /> Store Contact & Footer Information
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                      Contact Phone
+                    </label>
+                    <input
+                      type="text"
+                      value={siteForm.contactPhone || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, contactPhone: e.target.value })}
+                      className="w-full px-3 py-2.5 border rounded-xl"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                      Contact Email
+                    </label>
+                    <input
+                      type="email"
+                      value={siteForm.contactEmail || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, contactEmail: e.target.value })}
+                      className="w-full px-3 py-2.5 border rounded-xl"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                      Store Location Address
+                    </label>
+                    <input
+                      type="text"
+                      value={siteForm.storeLocation || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, storeLocation: e.target.value })}
+                      className="w-full px-3 py-2.5 border rounded-xl"
+                    />
+                  </div>
                 </div>
 
                 <div>
                   <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                    Contact Email
+                    Footer Brand Bio / About Text
                   </label>
-                  <input
-                    type="email"
-                    value={siteForm.contactEmail}
-                    onChange={(e) => setSiteForm({ ...siteForm, contactEmail: e.target.value })}
+                  <textarea
+                    rows={2}
+                    value={siteForm.footerAboutText || ''}
+                    onChange={(e) => setSiteForm({ ...siteForm, footerAboutText: e.target.value })}
                     className="w-full px-3 py-2.5 border rounded-xl"
                   />
                 </div>
 
                 <div>
                   <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                    Store Location Address
+                    Footer Copyright Text
                   </label>
                   <input
                     type="text"
-                    value={siteForm.storeLocation}
-                    onChange={(e) => setSiteForm({ ...siteForm, storeLocation: e.target.value })}
+                    value={siteForm.footerCopyright || ''}
+                    onChange={(e) => setSiteForm({ ...siteForm, footerCopyright: e.target.value })}
                     className="w-full px-3 py-2.5 border rounded-xl"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                  Footer Brand Bio / About Text
-                </label>
-                <textarea
-                  rows={2}
-                  value={siteForm.footerAboutText}
-                  onChange={(e) => setSiteForm({ ...siteForm, footerAboutText: e.target.value })}
-                  className="w-full px-3 py-2.5 border rounded-xl"
-                />
+              <div className="pt-4 border-t border-[#E7E2DA]">
+                <button
+                  type="submit"
+                  disabled={siteSaving}
+                  className="px-8 py-3.5 bg-[#1A1A1A] text-white text-xs font-bold uppercase tracking-widest rounded-2xl hover:bg-[#C5A880] transition-colors shadow-lg flex items-center gap-2"
+                >
+                  {siteSaving ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin text-[#C5A880]" />
+                      <span>Saving to Supabase...</span>
+                    </>
+                  ) : (
+                    <span>Save All Site Content & SEO Settings</span>
+                  )}
+                </button>
               </div>
-
-              <div>
-                <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                  Footer Copyright Text
-                </label>
-                <input
-                  type="text"
-                  value={siteForm.footerCopyright}
-                  onChange={(e) => setSiteForm({ ...siteForm, footerCopyright: e.target.value })}
-                  className="w-full px-3 py-2.5 border rounded-xl"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={siteSaving}
-                className="px-8 py-3.5 bg-[#1A1A1A] text-white text-xs font-bold uppercase tracking-widest rounded-2xl hover:bg-[#C5A880] transition-colors shadow-lg"
-              >
-                {siteSaving ? 'Saving to Supabase...' : 'Save All Site Content'}
-              </button>
             </form>
           </div>
         )}

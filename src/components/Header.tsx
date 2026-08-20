@@ -192,14 +192,7 @@ export const Header: React.FC = () => {
               )}
             </div>
 
-            {/* Supabase status modal button */}
-            <button
-              onClick={() => setIsSqlModalOpen(true)}
-              className="p-2 text-gray-600 hover:text-[#C5A880] transition-colors"
-              title="Supabase Database Status & Schema"
-            >
-              <Database className="w-5 h-5" />
-            </button>
+
 
             {/* Wishlist */}
             <button

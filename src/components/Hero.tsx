@@ -1,22 +1,42 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Sparkles, Send } from 'lucide-react';
+import { ArrowRight, Sparkles, Send, RefreshCw } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 
 export const Hero: React.FC = () => {
   const { siteSettings, telegramUsername } = useStore();
+  const [imgLoaded, setImgLoaded] = useState(false);
+
+  const heroImageSrc = siteSettings.heroImageUrl || '';
 
   return (
     <section className="relative w-full min-h-[82vh] flex items-center bg-[#FAF8F5] overflow-hidden border-b border-[#E7E2DA]">
       {/* Background Image Container */}
-      <div className="absolute inset-0 z-0">
-        <img
-          src={siteSettings.heroImageUrl || '/images/hero.jpg'}
-          alt={siteSettings.siteName || 'Hiwi Fashion'}
-          className="w-full h-full object-cover object-top filter brightness-[0.95]"
-        />
+      <div className="absolute inset-0 z-0 bg-[#EAE4DC]">
+        {heroImageSrc ? (
+          <>
+            {!imgLoaded && (
+              <div className="w-full h-full bg-[#FAF8F5] animate-pulse flex items-center justify-center">
+                <div className="flex items-center gap-2 text-xs font-bold text-gray-400">
+                  <RefreshCw className="w-4 h-4 animate-spin text-[#C5A880]" />
+                  <span>Loading Atelier Hero...</span>
+                </div>
+              </div>
+            )}
+            <img
+              src={heroImageSrc}
+              alt={siteSettings.siteName || 'Hiwi Fashion'}
+              onLoad={() => setImgLoaded(true)}
+              className={`w-full h-full object-cover object-top filter brightness-[0.95] transition-opacity duration-700 ${
+                imgLoaded ? 'opacity-100' : 'opacity-0'
+              }`}
+            />
+          </>
+        ) : (
+          <div className="w-full h-full bg-gradient-to-r from-[#FAF8F5] via-[#F4EFEA] to-[#EAE4DC]" />
+        )}
         {/* Soft gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-r from-[#FAF8F5]/90 via-[#FAF8F5]/60 to-transparent md:w-3/5" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#FAF8F5] via-transparent to-transparent md:hidden" />
@@ -61,12 +81,12 @@ export const Hero: React.FC = () => {
             </Link>
           </div>
 
-          {/* Telegram Order Notification */}
+          {/* Direct Inquire & Purchase Notification */}
           <div className="pt-4 border-t border-[#E7E2DA]/80 flex items-center gap-3 text-xs text-gray-600 font-medium">
             <div className="w-8 h-8 rounded-full bg-[#0088cc]/10 flex items-center justify-center text-[#0088cc] shrink-0">
               <Send className="w-4 h-4" />
             </div>
-            <span>Direct Telegram ordering in ETB via <strong>@{telegramUsername}</strong></span>
+            <span>Inquire & buy directly in ETB via <strong>@{telegramUsername}</strong></span>
           </div>
 
         </div>

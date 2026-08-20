@@ -26,6 +26,40 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   footerAboutText: 'Hiwi Fashion offers handcrafted authentic Habesha Kemis, modern Ethiopian evening gowns, Shemma Netela scarves, and artisanal leather fashion.',
   footerCopyright: '© 2026 Hiwi Fashion. All rights reserved. Addis Ababa, Ethiopia.',
   freeShippingThreshold: 2500,
+
+  // SEO Defaults
+  seoTitle: 'Hiwi Fashion | Authentic Habesha Kemis & Modern Atelier (ETB)',
+  seoDescription: 'Handcrafted Habesha Kemis dresses, fine Shemma Netelas, and modern fashion garments. Direct Telegram inbox ordering in Ethiopian Birr (ETB).',
+  seoKeywords: 'hiwi fashion, habesha dress, habesha kemis, ethiopian clothing, netela, etb, telegram order, addis ababa',
+  seoOgImage: '/images/hero.jpg',
+
+  // Mini Cards Defaults
+  miniCard1Title: 'LOCAL DELIVERY',
+  miniCard1Desc: 'Free in Addis Ababa over ETB 2,500',
+  miniCard2Title: 'DIRECT INQUIRE & BUY',
+  miniCard2Desc: '100% instant inbox order confirmation',
+  miniCard3Title: 'FITTING GUARANTEE',
+  miniCard3Desc: 'Easy exchange & size customization',
+  miniCard4Title: 'CUSTOMER CONCIERGE',
+  miniCard4Desc: '24/7 direct seller support in ETB',
+
+  // Promo Banner Defaults
+  promoBannerHeadline: 'Crafted for Every Special Moment',
+  promoBannerSubtitle: 'From traditional Ethiopian celebrations to casual everyday wear. Handcrafted with organic Ethiopian cotton and woven Netela embroidery.',
+  promoBannerImage: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&q=80&w=1600',
+  promoBannerCtaText: 'DISCOVER COLLECTION',
+  promoBannerCtaLink: '/catalog',
+
+  // Instagram Showcase Defaults
+  instagramHandle: '@HIWI.FASHION',
+  instagramImages: [
+    'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&q=80&w=600',
+    'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=600',
+    'https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&q=80&w=600',
+    'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&q=80&w=600',
+    'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&q=80&w=600',
+    'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?auto=format&fit=crop&q=80&w=600',
+  ],
 };
 
 let inMemorySiteSettings: SiteSettings = { ...DEFAULT_SITE_SETTINGS };
@@ -61,6 +95,29 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       footerAboutText: data.footer_about_text || DEFAULT_SITE_SETTINGS.footerAboutText,
       footerCopyright: data.footer_copyright || DEFAULT_SITE_SETTINGS.footerCopyright,
       freeShippingThreshold: Number(data.free_shipping_threshold || 2500),
+
+      seoTitle: data.seo_title || DEFAULT_SITE_SETTINGS.seoTitle,
+      seoDescription: data.seo_description || DEFAULT_SITE_SETTINGS.seoDescription,
+      seoKeywords: data.seo_keywords || DEFAULT_SITE_SETTINGS.seoKeywords,
+      seoOgImage: data.seo_og_image || DEFAULT_SITE_SETTINGS.seoOgImage,
+
+      miniCard1Title: data.mini_card1_title || DEFAULT_SITE_SETTINGS.miniCard1Title,
+      miniCard1Desc: data.mini_card1_desc || DEFAULT_SITE_SETTINGS.miniCard1Desc,
+      miniCard2Title: data.mini_card2_title || DEFAULT_SITE_SETTINGS.miniCard2Title,
+      miniCard2Desc: data.mini_card2_desc || DEFAULT_SITE_SETTINGS.miniCard2Desc,
+      miniCard3Title: data.mini_card3_title || DEFAULT_SITE_SETTINGS.miniCard3Title,
+      miniCard3Desc: data.mini_card3_desc || DEFAULT_SITE_SETTINGS.miniCard3Desc,
+      miniCard4Title: data.mini_card4_title || DEFAULT_SITE_SETTINGS.miniCard4Title,
+      miniCard4Desc: data.mini_card4_desc || DEFAULT_SITE_SETTINGS.miniCard4Desc,
+
+      promoBannerHeadline: data.promo_banner_headline || DEFAULT_SITE_SETTINGS.promoBannerHeadline,
+      promoBannerSubtitle: data.promo_banner_subtitle || DEFAULT_SITE_SETTINGS.promoBannerSubtitle,
+      promoBannerImage: data.promo_banner_image || DEFAULT_SITE_SETTINGS.promoBannerImage,
+      promoBannerCtaText: data.promo_banner_cta_text || DEFAULT_SITE_SETTINGS.promoBannerCtaText,
+      promoBannerCtaLink: data.promo_banner_cta_link || DEFAULT_SITE_SETTINGS.promoBannerCtaLink,
+
+      instagramHandle: data.instagram_handle || DEFAULT_SITE_SETTINGS.instagramHandle,
+      instagramImages: data.instagram_images || DEFAULT_SITE_SETTINGS.instagramImages,
     };
 
     inMemorySiteSettings = fetched;
@@ -80,29 +137,85 @@ export async function updateSiteSettings(settings: Partial<SiteSettings>): Promi
   };
 
   try {
-    const { error } = await supabase.from('site_settings').upsert([
-      {
-        id: 'default',
-        site_name: updated.siteName,
-        tagline: updated.tagline,
-        announcement_bar: updated.announcementBar,
-        hero_headline: updated.heroHeadline,
-        hero_subtitle: updated.heroSubtitle,
-        hero_image_url: updated.heroImageUrl,
-        hero_cta_text: updated.heroCtaText,
-        telegram_username: updated.telegramUsername,
-        contact_phone: updated.contactPhone,
-        contact_email: updated.contactEmail,
-        store_location: updated.storeLocation,
-        footer_about_text: updated.footerAboutText,
-        footer_copyright: updated.footerCopyright,
-        free_shipping_threshold: updated.freeShippingThreshold,
-        updated_at: new Date().toISOString(),
-      },
-    ]);
+    const payload: any = {
+      id: 'default',
+      site_name: updated.siteName,
+      tagline: updated.tagline,
+      announcement_bar: updated.announcementBar,
+      hero_headline: updated.heroHeadline,
+      hero_subtitle: updated.heroSubtitle,
+      hero_image_url: updated.heroImageUrl,
+      hero_cta_text: updated.heroCtaText,
+      telegram_username: updated.telegramUsername,
+      contact_phone: updated.contactPhone,
+      contact_email: updated.contactEmail,
+      store_location: updated.storeLocation,
+      footer_about_text: updated.footerAboutText,
+      footer_copyright: updated.footerCopyright,
+      free_shipping_threshold: updated.freeShippingThreshold,
+      updated_at: new Date().toISOString(),
+    };
 
-    if (error) {
-      console.warn('Supabase site_settings update warning:', error.message);
+    if (updated.seoTitle !== undefined) payload.seo_title = updated.seoTitle;
+    if (updated.seoDescription !== undefined) payload.seo_description = updated.seoDescription;
+    if (updated.seoKeywords !== undefined) payload.seo_keywords = updated.seoKeywords;
+    if (updated.seoOgImage !== undefined) payload.seo_og_image = updated.seoOgImage;
+
+    if (updated.miniCard1Title !== undefined) payload.mini_card1_title = updated.miniCard1Title;
+    if (updated.miniCard1Desc !== undefined) payload.mini_card1_desc = updated.miniCard1Desc;
+    if (updated.miniCard2Title !== undefined) payload.mini_card2_title = updated.miniCard2Title;
+    if (updated.miniCard2Desc !== undefined) payload.mini_card2_desc = updated.miniCard2Desc;
+    if (updated.miniCard3Title !== undefined) payload.mini_card3_title = updated.miniCard3Title;
+    if (updated.miniCard3Desc !== undefined) payload.mini_card3_desc = updated.miniCard3Desc;
+    if (updated.miniCard4Title !== undefined) payload.mini_card4_title = updated.miniCard4Title;
+    if (updated.miniCard4Desc !== undefined) payload.mini_card4_desc = updated.miniCard4Desc;
+
+    if (updated.promoBannerHeadline !== undefined) payload.promo_banner_headline = updated.promoBannerHeadline;
+    if (updated.promoBannerSubtitle !== undefined) payload.promo_banner_subtitle = updated.promoBannerSubtitle;
+    if (updated.promoBannerImage !== undefined) payload.promo_banner_image = updated.promoBannerImage;
+    if (updated.promoBannerCtaText !== undefined) payload.promo_banner_cta_text = updated.promoBannerCtaText;
+    if (updated.promoBannerCtaLink !== undefined) payload.promo_banner_cta_link = updated.promoBannerCtaLink;
+
+    if (updated.instagramHandle !== undefined) payload.instagram_handle = updated.instagramHandle;
+    if (updated.instagramImages !== undefined) payload.instagram_images = updated.instagramImages;
+
+    let attempts = 0;
+    while (attempts < 3) {
+      let { error } = await supabase.from('site_settings').upsert([payload]);
+      if (!error) break;
+
+      if (error && (error.code === 'PGRST204' || error.message.includes('Could not find') || error.message.includes('column'))) {
+        console.warn(`PGRST204 attempt ${attempts + 1} for site_settings stripping missing columns:`, error.message);
+        const match = error.message.match(/Could not find the '([^']+)' column/i) || error.message.match(/Could not find the "([^"]+)" column/i);
+        if (match && match[1]) {
+          delete payload[match[1]];
+        } else {
+          // Delete optional dynamic fields if not present in schema
+          delete payload.seo_title;
+          delete payload.seo_description;
+          delete payload.seo_keywords;
+          delete payload.seo_og_image;
+          delete payload.mini_card1_title;
+          delete payload.mini_card1_desc;
+          delete payload.mini_card2_title;
+          delete payload.mini_card2_desc;
+          delete payload.mini_card3_title;
+          delete payload.mini_card3_desc;
+          delete payload.mini_card4_title;
+          delete payload.mini_card4_desc;
+          delete payload.promo_banner_headline;
+          delete payload.promo_banner_subtitle;
+          delete payload.promo_banner_image;
+          delete payload.promo_banner_cta_text;
+          delete payload.promo_banner_cta_link;
+          delete payload.instagram_handle;
+          delete payload.instagram_images;
+        }
+        attempts++;
+      } else {
+        console.warn('Non-PGRST204 site_settings update warning:', error);
+        break;
+      }
     }
   } catch (err) {}
 

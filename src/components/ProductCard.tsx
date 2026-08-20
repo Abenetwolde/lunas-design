@@ -146,7 +146,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           </div>
         </div>
 
-        {/* Telegram Order Action Button */}
+        {/* Order Action Button */}
         <button
           onClick={() => openTelegramModal(product)}
           disabled={!isInStock}
@@ -157,7 +157,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           }`}
         >
           <Send className="w-3.5 h-3.5" />
-          <span>{isInStock ? 'Telegram Order' : 'Out of Stock'}</span>
+          <span>{isInStock ? 'Select & Buy' : 'Out of Stock'}</span>
         </button>
 
       </div>

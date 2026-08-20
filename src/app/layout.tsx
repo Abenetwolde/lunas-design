@@ -8,6 +8,8 @@ import { CartDrawer } from '../components/CartDrawer';
 import { WishlistDrawer } from '../components/WishlistDrawer';
 import { SupabaseSqlModal } from '../components/SupabaseSqlModal';
 
+import { SeoManager } from '../components/SeoManager';
+
 export const metadata: Metadata = {
   title: 'Hiwi Fashion | Authentic Habesha Kemis & Modern Atelier (ETB)',
   description:
@@ -28,6 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-full flex flex-col bg-[#F9F7F4] text-[#1A1A1A]">
         <StoreProvider>
+          <SeoManager />
           <Header />
           <main className="flex-1">{children}</main>
           <Footer />

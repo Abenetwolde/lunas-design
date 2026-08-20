@@ -84,4 +84,31 @@ export interface SiteSettings {
   footerAboutText: string;
   footerCopyright: string;
   freeShippingThreshold: number; // ETB
+
+  // Dynamic SEO Fields
+  seoTitle?: string;
+  seoDescription?: string;
+  seoKeywords?: string;
+  seoOgImage?: string;
+
+  // Dynamic Mini Cards (Feature Bar)
+  miniCard1Title?: string;
+  miniCard1Desc?: string;
+  miniCard2Title?: string;
+  miniCard2Desc?: string;
+  miniCard3Title?: string;
+  miniCard3Desc?: string;
+  miniCard4Title?: string;
+  miniCard4Desc?: string;
+
+  // Dynamic Promo Ad Banner
+  promoBannerHeadline?: string;
+  promoBannerSubtitle?: string;
+  promoBannerImage?: string;
+  promoBannerCtaText?: string;
+  promoBannerCtaLink?: string;
+
+  // Dynamic Instagram Showcase
+  instagramHandle?: string;
+  instagramImages?: string[];
 }

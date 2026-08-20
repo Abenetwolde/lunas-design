@@ -99,8 +99,8 @@ export const Footer: React.FC = () => {
             <h4 className="font-bold text-[#C5A880] uppercase tracking-widest">CUSTOMER CARE</h4>
             <ul className="space-y-2 text-gray-400 font-light">
               <li>
-                <a href={`https://t.me/${telegramUsername}`} className="hover:text-white transition-colors">
-                  Telegram Ordering Guide
+                <a href={`https://t.me/${telegramUsername}`} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+                  Direct Buying & Inquiry Guide
                 </a>
               </li>
               <li>
@@ -109,9 +109,9 @@ export const Footer: React.FC = () => {
                 </Link>
               </li>
               <li>
-                <button onClick={() => setIsSqlModalOpen(true)} className="hover:text-white transition-colors text-left">
-                  Supabase Integration Setup
-                </button>
+                <Link href="/catalog" className="hover:text-white transition-colors">
+                  Size & Fit Customization
+                </Link>
               </li>
             </ul>
           </div>
