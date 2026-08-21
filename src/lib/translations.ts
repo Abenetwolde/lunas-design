@@ -43,7 +43,7 @@ export const translations = {
 
     // Banner & Instagram
     editorialCommunity: 'EDITORIAL COMMUNITY',
-    followInstagram: 'Follow Hiwi Fashion on Instagram',
+    followInstagram:   'Follow Hiwi Fashion on Instagram',
     craftedSpecialMoment: 'Crafted for Every Special Moment',
     discoverCollection: 'DISCOVER COLLECTION',
 

@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { Product, ColorOption } from '../types';
 import { useStore } from '../context/StoreContext';
-import { Heart, Send, Star, Eye } from 'lucide-react';
+import { Heart, Send, Star, Eye, ShoppingBag } from 'lucide-react';
 
 interface ProductCardProps {
   product: Product;
@@ -147,18 +147,17 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         </div>
 
         {/* Order Action Button */}
-        <button
-          onClick={() => openTelegramModal(product)}
-          disabled={!isInStock}
-          className={`w-full py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 mt-1 ${
+        <Link
+          href={`/product/${product.slug || product.id}`}
+          className={`w-full py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 mt-1 text-center ${
             isInStock
-              ? 'bg-[#0088cc] hover:bg-[#0077b3] text-white'
-              : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              ? 'bg-[#1A1A1A] hover:bg-[#C5A880] text-white hover:text-black'
+              : 'bg-gray-200 text-gray-500 cursor-not-allowed pointer-events-none'
           }`}
         >
-          <Send className="w-3.5 h-3.5" />
+          <ShoppingBag className="w-3.5 h-3.5" />
           <span>{isInStock ? t('selectAndBuy') : t('outOfStock')}</span>
-        </button>
+        </Link>
 
       </div>
     </div>

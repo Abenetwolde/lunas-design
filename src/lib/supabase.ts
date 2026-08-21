@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { Product, Category, OrderInquiry, SiteSettings, Review } from '../types';
+import { Product, Category, SubCategory, ProductProperty, PropertyDefinition, OrderInquiry, SiteSettings, Review } from '../types';
 import { INITIAL_PRODUCTS, INITIAL_CATEGORIES } from '../data/mockProducts';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://xafspnuqhcpznrihtmvq.supabase.co';
@@ -262,6 +262,7 @@ export async function getProducts(): Promise<Product[]> {
       sizes: Array.isArray(item.sizes) ? item.sizes : ['XS', 'S', 'M', 'L', 'XL'],
       colors: Array.isArray(item.colors) ? item.colors : [{ name: 'Default', hex: '#1A1A1A' }],
       material: item.material || 'Ethiopian Cotton',
+      subcategory: item.subcategory || undefined,
       occasion: item.occasion || 'Casual',
       fabricCare: item.fabric_care || 'Hand wash cold or dry clean recommended.',
       deliveryInfo: item.delivery_info || 'Fast delivery available in Addis Ababa within 24-48 hours.',
@@ -339,6 +340,7 @@ export async function createProduct(productData: Partial<Product>): Promise<{ su
     if (newProduct.sizes) payload.sizes = newProduct.sizes;
     if (newProduct.colors) payload.colors = newProduct.colors;
     if (newProduct.material) payload.material = newProduct.material;
+    if (newProduct.subcategory) payload.subcategory = newProduct.subcategory;
     if (newProduct.occasion) payload.occasion = newProduct.occasion;
     if (newProduct.fabricCare) payload.fabric_care = newProduct.fabricCare;
     if (newProduct.deliveryInfo) payload.delivery_info = newProduct.deliveryInfo;
@@ -399,6 +401,7 @@ export async function updateProduct(id: string, productData: Partial<Product>): 
     if (productData.sizes !== undefined) updatePayload.sizes = productData.sizes;
     if (productData.colors !== undefined) updatePayload.colors = productData.colors;
     if (productData.material !== undefined) updatePayload.material = productData.material;
+    if (productData.subcategory !== undefined) updatePayload.subcategory = productData.subcategory;
     if (productData.occasion !== undefined) updatePayload.occasion = productData.occasion;
     if (productData.fabricCare !== undefined) updatePayload.fabric_care = productData.fabricCare;
     if (productData.deliveryInfo !== undefined) updatePayload.delivery_info = productData.deliveryInfo;
@@ -482,26 +485,9 @@ export async function getProductReviews(productId: string): Promise<Review[]> {
     }
   } catch (err) {}
 
-  // Fallback initial reviews if none in DB
+  // Real-time reviews from database/in-memory (no static fallback)
   if (!inMemoryReviews[productId]) {
-    inMemoryReviews[productId] = [
-      {
-        id: `rev-1`,
-        productId,
-        authorName: 'Hana Tadesse',
-        rating: 5,
-        comment: 'Absolutely stunning authentic Habesha quality! The embroidery and fabric feel so luxurious.',
-        createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-      },
-      {
-        id: `rev-2`,
-        productId,
-        authorName: 'Yonas Bekele',
-        rating: 5,
-        comment: 'Ordered via Telegram and received it the same day in Addis. Highly recommended seller!',
-        createdAt: new Date(Date.now() - 86400000 * 7).toISOString(),
-      },
-    ];
+    inMemoryReviews[productId] = [];
   }
   return inMemoryReviews[productId];
 }
@@ -547,24 +533,61 @@ export async function addReview(
 }
 
 /**
+ * Category Helper: Match product category against slug or name
+ */
+export function isProductInCategory(pCategory: string, catSlug: string, catName?: string): boolean {
+  if (!pCategory || !catSlug) return false;
+  const pCat = pCategory.toLowerCase().trim();
+  const cSlug = catSlug.toLowerCase().trim();
+  const cName = catName ? catName.toLowerCase().trim() : cSlug;
+
+  if (pCat === cSlug || pCat === cName) return true;
+
+  const normP = pCat.replace(/s$/, '');
+  const normS = cSlug.replace(/s$/, '');
+  const normN = cName.replace(/s$/, '');
+
+  if (normP === normS || normP === normN) return true;
+  if (normS.length >= 3 && normP.includes(normS)) return true;
+  if (normP.length >= 3 && normS.includes(normP)) return true;
+  return false;
+}
+
+/**
  * Fetch categories
  */
 export async function getCategories(): Promise<Category[]> {
   try {
+    const products = await getProducts();
     const { data, error } = await supabase.from('categories').select('*');
 
     if (error || !data || data.length === 0) {
-      return inMemoryCategories;
+      return inMemoryCategories.map((cat) => ({
+        ...cat,
+        itemCount: products.filter((p) => isProductInCategory(p.category, cat.slug, cat.name)).length,
+      }));
     }
 
-    const fetched = data.map((item: any) => ({
-      id: item.id,
-      name: item.name,
-      slug: item.slug,
-      image: item.image,
-      description: item.description || '',
-      itemCount: Number(item.item_count || 10),
-    }));
+    const fetched = data.map((item: any) => {
+      let subcats: string[] = [];
+      if (Array.isArray(item.subcategories)) {
+        subcats = item.subcategories;
+      } else if (typeof item.subcategories === 'string' && item.subcategories.trim()) {
+        subcats = item.subcategories.split(',').map((s: string) => s.trim()).filter(Boolean);
+      }
+
+      const realItemCount = products.filter((p) => isProductInCategory(p.category, item.slug, item.name)).length;
+
+      return {
+        id: item.id,
+        name: item.name,
+        slug: item.slug,
+        image: item.image,
+        description: item.description || '',
+        itemCount: realItemCount,
+        subcategories: subcats.length > 0 ? subcats : undefined,
+      };
+    });
 
     inMemoryCategories = fetched;
     return fetched;
@@ -585,17 +608,22 @@ export async function createCategory(cat: Partial<Category>): Promise<{ success:
     image: cat.image || '/images/hero.jpg',
     description: cat.description || '',
     itemCount: 0,
+    subcategories: cat.subcategories || [],
   };
 
   try {
-    await supabase.from('categories').insert([
-      {
-        name: newCat.name,
-        slug: newCat.slug,
-        image: newCat.image,
-        description: newCat.description,
-      },
-    ]);
+    let payload: any = {
+      name: newCat.name,
+      slug: newCat.slug,
+      image: newCat.image,
+      description: newCat.description,
+      subcategories: newCat.subcategories,
+    };
+    let { error } = await supabase.from('categories').insert([payload]);
+    if (error && (error.code === 'PGRST204' || error.message.includes('subcategories'))) {
+      delete payload.subcategories;
+      await supabase.from('categories').insert([payload]);
+    }
   } catch (err) {}
 
   inMemoryCategories.push(newCat);
@@ -607,12 +635,18 @@ export async function createCategory(cat: Partial<Category>): Promise<{ success:
  */
 export async function updateCategory(id: string, catData: Partial<Category>): Promise<{ success: boolean }> {
   try {
-    await supabase.from('categories').update({
+    let payload: any = {
       name: catData.name,
       slug: catData.slug,
       image: catData.image,
       description: catData.description,
-    }).eq('id', id);
+      subcategories: catData.subcategories,
+    };
+    let { error } = await supabase.from('categories').update(payload).eq('id', id);
+    if (error && (error.code === 'PGRST204' || error.message.includes('subcategories'))) {
+      delete payload.subcategories;
+      await supabase.from('categories').update(payload).eq('id', id);
+    }
   } catch (err) {}
 
   inMemoryCategories = inMemoryCategories.map((c) => (c.id === id ? { ...c, ...catData } : c));
@@ -628,6 +662,482 @@ export async function deleteCategory(id: string): Promise<{ success: boolean }> 
   } catch (err) {}
 
   inMemoryCategories = inMemoryCategories.filter((c) => c.id !== id);
+  return { success: true };
+}
+
+export let inMemorySubcategories: SubCategory[] = [
+  { id: 'sub-1', name: 'Traditional Habesha Kemis', slug: 'traditional-habesha-kemis', categorySlug: 'dresses', description: 'Authentic handwoven ceremonial dresses with Tibet border', badgeColor: '#C5A880' },
+  { id: 'sub-2', name: 'Modern Habesha Gown', slug: 'modern-habesha-gown', categorySlug: 'dresses', description: 'Contemporary tailored evening gowns with Ethiopian motifs', badgeColor: '#1A1A1A' },
+  { id: 'sub-3', name: 'Bridal & Wedding', slug: 'bridal-wedding', categorySlug: 'dresses', description: 'Luxury bridal Kemis with gold thread embroidery', badgeColor: '#D4AF37' },
+  { id: 'sub-4', name: 'Linen Wrap', slug: 'linen-wrap', categorySlug: 'dresses', description: 'Lightweight summer wrap dresses', badgeColor: '#1B4D3E' },
+  { id: 'sub-5', name: 'Short Tunics', slug: 'short-tunics', categorySlug: 'dresses', description: 'Short modern Habesha tunics', badgeColor: '#800020' },
+
+  { id: 'sub-6', name: 'Netela & Shawls', slug: 'netela-shawls', categorySlug: 'accessories', description: 'Handwoven pure cotton scarves and shawls', badgeColor: '#FAF8F5' },
+  { id: 'sub-7', name: 'Silver & Gold Jewelry', slug: 'silver-gold-jewelry', categorySlug: 'accessories', description: 'Traditional Ethiopian cross necklaces and rings', badgeColor: '#D4AF37' },
+  { id: 'sub-8', name: 'Woven Bags', slug: 'woven-bags', categorySlug: 'accessories', description: 'Handcrafted leather and woven straw handbags', badgeColor: '#C5A880' },
+  { id: 'sub-9', name: 'Hair Accessories', slug: 'hair-accessories', categorySlug: 'accessories', description: 'Traditional headwraps and hair pins', badgeColor: '#1A1A1A' },
+
+  { id: 'sub-10', name: 'Leather Sandals', slug: 'leather-sandals', categorySlug: 'shoes', description: 'Genuine leather handmade sandals', badgeColor: '#1A1A1A' },
+  { id: 'sub-11', name: 'Handcrafted Heels', slug: 'handcrafted-heels', categorySlug: 'shoes', description: 'Elegant evening heels with Ethiopian accents', badgeColor: '#C5A880' },
+  { id: 'sub-12', name: 'Embroidery Flats', slug: 'embroidery-flats', categorySlug: 'shoes', description: 'Comfortable flat shoes with woven embroidery', badgeColor: '#1B4D3E' },
+  { id: 'sub-13', name: 'Casual Slip-ons', slug: 'casual-slip-ons', categorySlug: 'shoes', description: 'Daily casual slip-on shoes', badgeColor: '#800020' },
+
+  { id: 'sub-14', name: 'Traditional Shirts', slug: 'traditional-shirts', categorySlug: 'tops', description: 'Handwoven cotton men and women shirts', badgeColor: '#FAF8F5' },
+  { id: 'sub-15', name: 'Embroidered Blouses', slug: 'embroidered-blouses', categorySlug: 'tops', description: 'Fine embroidered tops for daily wear', badgeColor: '#C5A880' },
+  { id: 'sub-16', name: 'Habesha Vests', slug: 'habesha-vests', categorySlug: 'tops', description: 'Layering vests with Ethiopian patterns', badgeColor: '#1A1A1A' },
+  { id: 'sub-17', name: 'Casual Tunics', slug: 'casual-tunics', categorySlug: 'tops', description: 'Comfortable everyday tunic tops', badgeColor: '#002366' },
+];
+
+/**
+ * Fetch subcategories with dynamic product counts
+ */
+export async function getSubcategories(): Promise<SubCategory[]> {
+  try {
+    const products = await getProducts();
+    const { data, error } = await supabase.from('subcategories').select('*');
+
+    let baseList = inMemorySubcategories;
+    if (!error && data && data.length > 0) {
+      baseList = data.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        slug: item.slug,
+        categorySlug: item.category_slug || item.categorySlug || 'dresses',
+        description: item.description || '',
+        badgeColor: item.badge_color || item.badgeColor || '#C5A880',
+      }));
+    }
+
+    const fetched = baseList.map((sub) => {
+      const liveCount = products.filter((p) => {
+        const pSub = (p.subcategory || '').toLowerCase();
+        const pDesc = p.description.toLowerCase();
+        const pName = p.name.toLowerCase();
+        const s = sub.name.toLowerCase();
+        return pSub.includes(s) || s.includes(pSub) || pDesc.includes(s) || pName.includes(s);
+      }).length;
+
+      return {
+        ...sub,
+        itemCount: liveCount,
+      };
+    });
+
+    inMemorySubcategories = fetched;
+    return fetched;
+  } catch (err) {
+    return inMemorySubcategories;
+  }
+}
+
+/**
+ * Create SubCategory
+ */
+export async function createSubcategory(sub: Partial<SubCategory>): Promise<{ success: boolean; data?: SubCategory }> {
+  const slug = sub.slug || (sub.name || 'subcat').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+  const newSub: SubCategory = {
+    id: `sub-${Date.now()}`,
+    name: sub.name || 'New Style Filter',
+    slug,
+    categorySlug: sub.categorySlug || 'dresses',
+    description: sub.description || '',
+    badgeColor: sub.badgeColor || '#C5A880',
+    itemCount: 0,
+  };
+
+  try {
+    const payload = {
+      name: newSub.name,
+      slug: newSub.slug,
+      category_slug: newSub.categorySlug,
+      description: newSub.description,
+      badge_color: newSub.badgeColor,
+    };
+    let { error } = await supabase.from('subcategories').insert([payload]);
+    if (error && error.code === 'PGRST204') {
+      console.warn('Subcategories table missing in Supabase, using in-memory mode:', error.message);
+    }
+  } catch (err) {}
+
+  inMemorySubcategories.unshift(newSub);
+
+  // Sync to parent category's subcategories array
+  try {
+    const cats = await getCategories();
+    const parentCat = cats.find(c => c.slug === newSub.categorySlug || c.name.toLowerCase() === newSub.categorySlug.toLowerCase());
+    if (parentCat) {
+      const existingSubs = parentCat.subcategories || [];
+      if (!existingSubs.includes(newSub.name)) {
+        await updateCategory(parentCat.id, { subcategories: [...existingSubs, newSub.name] });
+      }
+    }
+  } catch (e) {}
+
+  return { success: true, data: newSub };
+}
+
+/**
+ * Update SubCategory
+ */
+export async function updateSubcategory(id: string, subData: Partial<SubCategory>): Promise<{ success: boolean }> {
+  try {
+    const payload: any = {};
+    if (subData.name !== undefined) payload.name = subData.name;
+    if (subData.slug !== undefined) payload.slug = subData.slug;
+    if (subData.categorySlug !== undefined) payload.category_slug = subData.categorySlug;
+    if (subData.description !== undefined) payload.description = subData.description;
+    if (subData.badgeColor !== undefined) payload.badge_color = subData.badgeColor;
+
+    await supabase.from('subcategories').update(payload).eq('id', id);
+  } catch (err) {}
+
+  inMemorySubcategories = inMemorySubcategories.map((s) => (s.id === id ? { ...s, ...subData } : s));
+  return { success: true };
+}
+
+/**
+ * Delete SubCategory
+ */
+export async function deleteSubcategory(id: string): Promise<{ success: boolean }> {
+  try {
+    await supabase.from('subcategories').delete().eq('id', id);
+  } catch (err) {}
+
+  inMemorySubcategories = inMemorySubcategories.filter((s) => s.id !== id);
+  return { success: true };
+}
+
+export let inMemoryProductProperties: ProductProperty[] = [
+  // Materials
+  { id: 'prop-m1', type: 'material', name: 'Linen', slug: 'linen', description: 'Natural lightweight organic linen' },
+  { id: 'prop-m2', type: 'material', name: 'Cotton', slug: 'cotton', description: '100% pure Ethiopian cotton' },
+  { id: 'prop-m3', type: 'material', name: 'Habesha Shemma', slug: 'habesha-shemma', description: 'Traditional handwoven Shemma with Tibeb borders' },
+  { id: 'prop-m4', type: 'material', name: 'Silk', slug: 'silk', description: 'Pure luxury silk fabric' },
+  { id: 'prop-m5', type: 'material', name: 'Satin', slug: 'satin', description: 'Smooth lustrous evening satin' },
+  { id: 'prop-m6', type: 'material', name: 'Chiffon', slug: 'chiffon', description: 'Sheer lightweight chiffon' },
+  { id: 'prop-m7', type: 'material', name: 'Wool', slug: 'wool', description: 'Soft Ethiopian highland woven wool' },
+
+  // Occasions
+  { id: 'prop-o1', type: 'occasion', name: 'Ceremonial & Wedding', slug: 'ceremonial-wedding', description: 'Traditional weddings and formal ceremonies' },
+  { id: 'prop-o2', type: 'occasion', name: 'Holiday & Festival', slug: 'holiday-festival', description: 'Enkutatash, Timkat, and Ethiopian New Year' },
+  { id: 'prop-o3', type: 'occasion', name: 'Casual & Daily', slug: 'casual-daily', description: 'Comfortable modern daily wear' },
+  { id: 'prop-o4', type: 'occasion', name: 'Evening & Gala', slug: 'evening-gala', description: 'Formal night outfits and luxury gowns' },
+];
+
+/**
+ * Fetch Product Properties (Materials, Occasions, Tags)
+ */
+export async function getProductProperties(): Promise<ProductProperty[]> {
+  try {
+    const { data, error } = await supabase.from('product_properties').select('*');
+    if (!error && data && data.length > 0) {
+      const fetched = data.map((item: any) => ({
+        id: item.id,
+        type: item.type || 'material',
+        name: item.name,
+        slug: item.slug,
+        description: item.description || '',
+        badgeColor: item.badge_color || item.badgeColor || '#C5A880',
+      }));
+      inMemoryProductProperties = fetched;
+      return fetched;
+    }
+    return inMemoryProductProperties;
+  } catch (err) {
+    return inMemoryProductProperties;
+  }
+}
+
+/**
+ * Create Product Property (Material, Occasion, or Custom Tag)
+ */
+export async function createProductProperty(prop: Partial<ProductProperty>): Promise<{ success: boolean; data?: ProductProperty }> {
+  const slug = prop.slug || (prop.name || 'property').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+  const newProp: ProductProperty = {
+    id: `prop-${Date.now()}`,
+    type: prop.type || 'material',
+    name: prop.name || 'New Property',
+    slug,
+    description: prop.description || '',
+    badgeColor: prop.badgeColor || '#C5A880',
+  };
+
+  try {
+    const payload = {
+      type: newProp.type,
+      name: newProp.name,
+      slug: newProp.slug,
+      description: newProp.description,
+      badge_color: newProp.badgeColor,
+    };
+    await supabase.from('product_properties').insert([payload]);
+  } catch (err) {}
+
+  inMemoryProductProperties.unshift(newProp);
+  return { success: true, data: newProp };
+}
+
+/**
+ * Delete Product Property
+ */
+export async function deleteProductProperty(id: string): Promise<{ success: boolean }> {
+  try {
+    await supabase.from('product_properties').delete().eq('id', id);
+  } catch (err) {}
+
+  inMemoryProductProperties = inMemoryProductProperties.filter((p) => p.id !== id);
+  return { success: true };
+}
+
+export let inMemoryPropertyDefinitions: PropertyDefinition[] = [
+  {
+    id: 'pdef-sizes',
+    name: 'Size',
+    slug: 'sizes',
+    type: 'multi_select',
+    description: 'Product sizing options',
+    categoryIds: ['all'],
+    filterable: true,
+    variant: true,
+    required: false,
+    showOnProductPage: true,
+    showOnProductCard: false,
+    displayOrder: 1,
+    options: [
+      { id: 'opt-xs', name: 'XS', value: 'XS' },
+      { id: 'opt-s', name: 'S', value: 'S' },
+      { id: 'opt-m', name: 'M', value: 'M' },
+      { id: 'opt-l', name: 'L', value: 'L' },
+      { id: 'opt-xl', name: 'XL', value: 'XL' },
+      { id: 'opt-36', name: '36', value: '36' },
+      { id: 'opt-37', name: '37', value: '37' },
+      { id: 'opt-38', name: '38', value: '38' },
+      { id: 'opt-39', name: '39', value: '39' },
+      { id: 'opt-40', name: '40', value: '40' },
+      { id: 'opt-41', name: '41', value: '41' },
+      { id: 'opt-onesize', name: 'One Size', value: 'One Size' },
+    ],
+  },
+  {
+    id: 'pdef-colors',
+    name: 'Color Palette',
+    slug: 'colors',
+    type: 'color',
+    description: 'Color theme and swatches',
+    categoryIds: ['all'],
+    filterable: true,
+    variant: true,
+    required: false,
+    showOnProductPage: true,
+    showOnProductCard: false,
+    displayOrder: 2,
+    options: [
+      { id: 'opt-white', name: 'Pure White', value: 'Pure White', hex: '#FAFAFA' },
+      { id: 'opt-cream', name: 'Ivory Cream', value: 'Ivory Cream', hex: '#FAF8F5' },
+      { id: 'opt-gold', name: 'Habesha Gold', value: 'Habesha Gold', hex: '#C5A880' },
+      { id: 'opt-royalgold', name: 'Royal Gold', value: 'Royal Gold', hex: '#D4AF37' },
+      { id: 'opt-emerald', name: 'Emerald Green', value: 'Emerald Green', hex: '#1B4D3E' },
+      { id: 'opt-burgundy', name: 'Deep Burgundy', value: 'Deep Burgundy', hex: '#800020' },
+      { id: 'opt-navy', name: 'Royal Navy', value: 'Royal Navy', hex: '#002366' },
+      { id: 'opt-black', name: 'Charcoal Black', value: 'Charcoal Black', hex: '#1A1A1A' },
+    ],
+  },
+  {
+    id: 'pdef-material',
+    name: 'Material & Fabric',
+    slug: 'material',
+    type: 'select',
+    description: 'Primary fabric composition',
+    categoryIds: ['all'],
+    filterable: true,
+    variant: false,
+    required: false,
+    showOnProductPage: true,
+    showOnProductCard: true,
+    displayOrder: 3,
+    options: [
+      { id: 'opt-linen', name: 'Linen', value: 'Linen' },
+      { id: 'opt-cotton', name: 'Cotton', value: 'Cotton' },
+      { id: 'opt-shemma', name: 'Habesha Shemma', value: 'Habesha Shemma' },
+      { id: 'opt-silk', name: 'Silk', value: 'Silk' },
+      { id: 'opt-satin', name: 'Satin', value: 'Satin' },
+      { id: 'opt-chiffon', name: 'Chiffon', value: 'Chiffon' },
+      { id: 'opt-wool', name: 'Wool', value: 'Wool' },
+    ],
+  },
+  {
+    id: 'pdef-occasion',
+    name: 'Occasion',
+    slug: 'occasion',
+    type: 'select',
+    description: 'Wearing event or celebration',
+    categoryIds: ['dresses', 'tops', 'accessories'],
+    filterable: true,
+    variant: false,
+    required: false,
+    showOnProductPage: true,
+    showOnProductCard: false,
+    displayOrder: 4,
+    options: [
+      { id: 'opt-wedding', name: 'Ceremonial & Wedding', value: 'Ceremonial & Wedding' },
+      { id: 'opt-holiday', name: 'Holiday & Festival', value: 'Holiday & Festival' },
+      { id: 'opt-casual', name: 'Casual & Daily', value: 'Casual & Daily' },
+      { id: 'opt-evening', name: 'Evening & Gala', value: 'Evening & Gala' },
+    ],
+  },
+  {
+    id: 'pdef-sleeve-type',
+    name: 'Sleeve Type',
+    slug: 'sleeve-type',
+    type: 'select',
+    description: 'Sleeve length and style',
+    categoryIds: ['dresses', 'tops'],
+    filterable: true,
+    variant: true,
+    required: false,
+    showOnProductPage: true,
+    showOnProductCard: false,
+    displayOrder: 5,
+    options: [
+      { id: 'opt-slv-short', name: 'Short Sleeve', value: 'Short Sleeve' },
+      { id: 'opt-slv-long', name: 'Long Sleeve', value: 'Long Sleeve' },
+      { id: 'opt-slv-none', name: 'Sleeveless', value: 'Sleeveless' },
+      { id: 'opt-slv-off', name: 'Off-Shoulder', value: 'Off-Shoulder' },
+      { id: 'opt-slv-cape', name: 'Cape Sleeve', value: 'Cape Sleeve' },
+    ],
+  },
+  {
+    id: 'pdef-heel-height',
+    name: 'Heel Height',
+    slug: 'heel-height',
+    type: 'number',
+    unit: 'cm',
+    description: 'Footwear heel elevation',
+    categoryIds: ['shoes'],
+    filterable: true,
+    variant: false,
+    required: false,
+    showOnProductPage: true,
+    showOnProductCard: false,
+    displayOrder: 6,
+  },
+];
+
+/**
+ * Fetch All Metadata Property Definitions
+ */
+export async function getPropertyDefinitions(): Promise<PropertyDefinition[]> {
+  try {
+    const { data, error } = await supabase.from('property_definitions').select('*').order('display_order', { ascending: true });
+    if (!error && data && data.length > 0) {
+      const fetched: PropertyDefinition[] = data.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        slug: item.slug,
+        type: item.type || 'select',
+        description: item.description || '',
+        unit: item.unit || '',
+        options: item.options || [],
+        categoryIds: item.category_ids || ['all'],
+        filterable: item.filterable !== false,
+        variant: item.variant || false,
+        required: item.required || false,
+        showOnProductPage: item.show_on_product_page !== false,
+        showOnProductCard: item.show_on_product_card || false,
+        displayOrder: item.display_order || 0,
+        created_at: item.created_at,
+      }));
+      inMemoryPropertyDefinitions = fetched;
+      return fetched;
+    }
+    return inMemoryPropertyDefinitions;
+  } catch (err) {
+    return inMemoryPropertyDefinitions;
+  }
+}
+
+/**
+ * Create Metadata Property Definition
+ */
+export async function createPropertyDefinition(propDef: Partial<PropertyDefinition>): Promise<{ success: boolean; data?: PropertyDefinition }> {
+  const slug = propDef.slug || (propDef.name || 'property').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+  const newPropDef: PropertyDefinition = {
+    id: propDef.id || `pdef-${Date.now()}`,
+    name: propDef.name || 'New Property',
+    slug,
+    type: propDef.type || 'select',
+    description: propDef.description || '',
+    unit: propDef.unit || '',
+    options: propDef.options || [],
+    categoryIds: propDef.categoryIds && propDef.categoryIds.length > 0 ? propDef.categoryIds : ['all'],
+    filterable: propDef.filterable !== undefined ? propDef.filterable : true,
+    variant: propDef.variant || false,
+    required: propDef.required || false,
+    showOnProductPage: propDef.showOnProductPage !== undefined ? propDef.showOnProductPage : true,
+    showOnProductCard: propDef.showOnProductCard || false,
+    displayOrder: propDef.displayOrder || inMemoryPropertyDefinitions.length + 1,
+  };
+
+  try {
+    const payload = {
+      id: newPropDef.id,
+      name: newPropDef.name,
+      slug: newPropDef.slug,
+      type: newPropDef.type,
+      description: newPropDef.description,
+      unit: newPropDef.unit,
+      options: newPropDef.options,
+      category_ids: newPropDef.categoryIds,
+      filterable: newPropDef.filterable,
+      variant: newPropDef.variant,
+      required: newPropDef.required,
+      show_on_product_page: newPropDef.showOnProductPage,
+      show_on_product_card: newPropDef.showOnProductCard,
+      display_order: newPropDef.displayOrder,
+    };
+    await supabase.from('property_definitions').insert([payload]);
+  } catch (err) {}
+
+  inMemoryPropertyDefinitions.push(newPropDef);
+  return { success: true, data: newPropDef };
+}
+
+/**
+ * Update Property Definition
+ */
+export async function updatePropertyDefinition(id: string, propData: Partial<PropertyDefinition>): Promise<{ success: boolean }> {
+  try {
+    const payload: any = {};
+    if (propData.name !== undefined) payload.name = propData.name;
+    if (propData.slug !== undefined) payload.slug = propData.slug;
+    if (propData.type !== undefined) payload.type = propData.type;
+    if (propData.description !== undefined) payload.description = propData.description;
+    if (propData.unit !== undefined) payload.unit = propData.unit;
+    if (propData.options !== undefined) payload.options = propData.options;
+    if (propData.categoryIds !== undefined) payload.category_ids = propData.categoryIds;
+    if (propData.filterable !== undefined) payload.filterable = propData.filterable;
+    if (propData.variant !== undefined) payload.variant = propData.variant;
+    if (propData.required !== undefined) payload.required = propData.required;
+    if (propData.showOnProductPage !== undefined) payload.show_on_product_page = propData.showOnProductPage;
+    if (propData.showOnProductCard !== undefined) payload.show_on_product_card = propData.showOnProductCard;
+    if (propData.displayOrder !== undefined) payload.display_order = propData.displayOrder;
+
+    await supabase.from('property_definitions').update(payload).eq('id', id);
+  } catch (err) {}
+
+  inMemoryPropertyDefinitions = inMemoryPropertyDefinitions.map((p) => (p.id === id ? { ...p, ...propData } : p));
+  return { success: true };
+}
+
+/**
+ * Delete Property Definition
+ */
+export async function deletePropertyDefinition(id: string): Promise<{ success: boolean }> {
+  try {
+    await supabase.from('property_definitions').delete().eq('id', id);
+  } catch (err) {}
+
+  inMemoryPropertyDefinitions = inMemoryPropertyDefinitions.filter((p) => p.id !== id);
   return { success: true };
 }
 

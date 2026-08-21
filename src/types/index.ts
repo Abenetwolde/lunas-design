@@ -17,6 +17,7 @@ export interface Product {
   name: string;
   slug: string;
   category: 'dresses' | 'tops' | 'accessories' | 'shoes' | string;
+  subcategory?: string;
   price: number; // In ETB
   originalPrice?: number; // In ETB (Optional - for discount strikethrough)
   rating: number;
@@ -38,6 +39,8 @@ export interface Product {
   stockQuantity?: number;
   created_at?: string;
   reviewsList?: Review[];
+  // DYNAMIC METADATA-DRIVEN ATTRIBUTES (Record keyed by property slug or ID)
+  attributes?: Record<string, any>;
 }
 
 export interface Category {
@@ -47,6 +50,53 @@ export interface Category {
   image: string;
   description: string;
   itemCount: number;
+  subcategories?: string[];
+}
+
+export interface SubCategory {
+  id: string;
+  name: string;
+  slug: string;
+  categorySlug: string; // Parent Category slug or name
+  description?: string;
+  itemCount?: number;
+  badgeColor?: string;
+}
+
+export type PropertyType = 'select' | 'multi_select' | 'color' | 'number' | 'boolean' | 'text';
+
+export interface PropertyOption {
+  id: string;
+  name: string;
+  value: string;
+  hex?: string; // Hex color for color swatches
+}
+
+export interface PropertyDefinition {
+  id: string;
+  name: string;
+  slug: string;
+  type: PropertyType;
+  description?: string;
+  unit?: string; // E.g. "cm", "g", "ETB"
+  options?: PropertyOption[];
+  categoryIds: string[]; // ['dresses', 'tops'] or ['all']
+  filterable: boolean; // Auto-generates storefront filter if true
+  variant: boolean; // Used as product variant option
+  required: boolean;
+  showOnProductPage: boolean;
+  showOnProductCard: boolean;
+  displayOrder: number;
+  created_at?: string;
+}
+
+export interface ProductProperty {
+  id: string;
+  type: 'material' | 'occasion' | 'tag';
+  name: string;
+  slug: string;
+  description?: string;
+  badgeColor?: string;
 }
 
 export interface CartItem {
@@ -109,6 +159,7 @@ export interface SiteSettings {
   promoBannerCtaLink?: string;
 
   // Dynamic Instagram Showcase
+  instagramTitle?: string;
   instagramHandle?: string;
   instagramImages?: string[];
 }

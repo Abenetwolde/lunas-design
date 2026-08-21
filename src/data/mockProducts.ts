@@ -7,7 +7,8 @@ export const INITIAL_CATEGORIES: Category[] = [
     slug: 'dresses',
     image: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&q=80&w=1000',
     description: 'Authentic Habesha Kemis, modern Ethiopian dresses and elegant attire for every celebration.',
-    itemCount: 18,
+    itemCount: 3,
+    subcategories: ['Traditional Habesha Kemis', 'Modern Gown', 'Bridal & Wedding', 'Linen Wrap', 'Short Tunics'],
   },
   {
     id: 'cat-2',
@@ -15,7 +16,8 @@ export const INITIAL_CATEGORIES: Category[] = [
     slug: 'tops',
     image: '/images/blazer.jpg',
     description: 'Contemporary Ethiopian cotton tops, blouses, and tailored jackets.',
-    itemCount: 14,
+    itemCount: 2,
+    subcategories: ['Linen Blazers', 'Cotton Blouses', 'Short Shirts', 'Knit Tops'],
   },
   {
     id: 'cat-3',
@@ -23,7 +25,8 @@ export const INITIAL_CATEGORIES: Category[] = [
     slug: 'accessories',
     image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&q=80&w=1000',
     description: 'Handwoven Shemma Netelas, genuine leather bags, and artisanal Ethiopian jewelry.',
-    itemCount: 12,
+    itemCount: 2,
+    subcategories: ['Handwoven Netela', 'Shemma Scarves', 'Leather Bags & Totes', 'Artisanal Jewelry'],
   },
   {
     id: 'cat-4',
@@ -31,7 +34,8 @@ export const INITIAL_CATEGORIES: Category[] = [
     slug: 'shoes',
     image: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?auto=format&fit=crop&q=80&w=1000',
     description: 'Genuine leather sandals, heels, and handcrafted Ethiopian footwear.',
-    itemCount: 10,
+    itemCount: 1,
+    subcategories: ['Leather Sandals', 'Heels', 'Flat Sandals', 'Handcrafted Mules'],
   },
 ];
 

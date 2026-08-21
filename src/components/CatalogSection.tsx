@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { Product, Category } from '../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Product, Category, PropertyDefinition } from '../types';
+import { getPropertyDefinitions } from '../lib/supabase';
 import { ProductCard } from './ProductCard';
 import {
   SlidersHorizontal,
@@ -14,6 +15,7 @@ import {
   ChevronDown,
   X,
   Send,
+  Tag,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 
@@ -36,36 +38,140 @@ export const CatalogSection: React.FC<CatalogSectionProps> = ({
   const [selectedCategories, setSelectedCategories] = useState<string[]>(
     initialCategorySlug ? [initialCategorySlug] : []
   );
+  const [selectedSubcategories, setSelectedSubcategories] = useState<string[]>([]);
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [selectedMaterials, setSelectedMaterials] = useState<string[]>([]);
-  const [selectedOccasions, setSelectedOccasions] = useState<string[]>([]);
-  const [priceMax, setPriceMax] = useState<number>(6000);
+  const [priceMax, setPriceMax] = useState<number>(15000);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [saleOnly, setSaleOnly] = useState<boolean>(initialSaleOnly);
   const [sortBy, setSortBy] = useState<'newest' | 'price-asc' | 'price-desc' | 'rating'>('newest');
   const [viewMode, setViewMode] = useState<'grid-4' | 'grid-3' | 'grid-2' | 'list'>('grid-4');
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
-  // Available filter values
-  const colorOptions = [
-    { name: 'Pure White', hex: '#FAFAFA' },
-    { name: 'Sand Beige', hex: '#D8C5B3' },
-    { name: 'Charcoal Black', hex: '#1A1A1A' },
-    { name: 'Cream', hex: '#ECE6D8' },
-    { name: 'Gold Champagne', hex: '#F4E4C1' },
-    { name: 'Emerald Green', hex: '#1B4D3E' },
-    { name: 'Taupe', hex: '#B3A394' },
-    { name: 'Tan Brown', hex: '#AF6E4D' },
-  ];
+  // Dynamic Schema Property Definitions State
+  const [propertyDefs, setPropertyDefs] = useState<PropertyDefinition[]>([]);
+  const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string[]>>({});
 
-  const sizeOptions = ['XS', 'S', 'M', 'L', 'XL', '36', '37', '38', '39', '40', '41', 'One Size'];
-  const materialOptions = ['Linen', 'Cotton', 'Satin', 'Silk', 'Chiffon'];
-  const occasionOptions = ['Casual', 'Work', 'Party', 'Wedding'];
+  useEffect(() => {
+    getPropertyDefinitions().then((defs) => setPropertyDefs(defs.filter((d) => d.filterable)));
+  }, []);
+
+  // Helper to test if product matches category
+  const isProductInCategory = (pCategory: string, catSlug: string, catName?: string) => {
+    if (!pCategory || !catSlug) return false;
+    const pCat = pCategory.toLowerCase().trim();
+    const cSlug = catSlug.toLowerCase().trim();
+    const cName = catName ? catName.toLowerCase().trim() : cSlug;
+
+    if (pCat === cSlug || pCat === cName) return true;
+
+    const normP = pCat.replace(/s$/, '');
+    const normS = cSlug.replace(/s$/, '');
+    const normN = cName.replace(/s$/, '');
+
+    if (normP === normS || normP === normN) return true;
+    if (normS.length >= 3 && normP.includes(normS)) return true;
+    if (normP.length >= 3 && normS.includes(normP)) return true;
+    return false;
+  };
+
+  // Scoped products: products in currently selected category (or all if none selected)
+  const scopedProducts = useMemo(() => {
+    if (selectedCategories.length === 0) return initialProducts;
+    return initialProducts.filter((p) =>
+      selectedCategories.some((slug) => {
+        const catObj = categories.find((c) => c.slug === slug || c.name.toLowerCase() === slug.toLowerCase());
+        return isProductInCategory(p.category, slug, catObj?.name);
+      })
+    );
+  }, [initialProducts, selectedCategories, categories]);
+
+  // Dynamic Subcategories derived from active categories & products in scope
+  const dynamicSubcategories = useMemo(() => {
+    const subcatSet = new Set<string>();
+
+    const activeCats = selectedCategories.length > 0
+      ? categories.filter((c) => selectedCategories.includes(c.slug) || selectedCategories.some(s => isProductInCategory(c.slug, s, c.name)))
+      : categories;
+
+    activeCats.forEach((c) => {
+      (c.subcategories || []).forEach((sc) => {
+        if (sc && sc.trim()) subcatSet.add(sc.trim());
+      });
+    });
+
+    scopedProducts.forEach((p) => {
+      if (p.subcategory && p.subcategory.trim()) {
+        subcatSet.add(p.subcategory.trim());
+      }
+    });
+
+    return Array.from(subcatSet);
+  }, [categories, selectedCategories, scopedProducts]);
+
+  // Dynamic Colors derived from real database products
+  const dynamicColorOptions = useMemo(() => {
+    const colorMap = new Map<string, string>();
+    scopedProducts.forEach((p) => {
+      (p.colors || []).forEach((c) => {
+        if (c && c.name && !colorMap.has(c.name.toLowerCase())) {
+          colorMap.set(c.name.toLowerCase(), c.hex || '#1A1A1A');
+        }
+      });
+    });
+    return Array.from(colorMap.entries()).map(([rawName, hex]) => {
+      const displayName = rawName
+        .split(' ')
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+      return { name: displayName, rawName, hex };
+    });
+  }, [scopedProducts]);
+
+  // Dynamic Sizes derived from real database products
+  const dynamicSizeOptions = useMemo(() => {
+    const sizeSet = new Set<string>();
+    scopedProducts.forEach((p) => {
+      (p.sizes || []).forEach((s) => {
+        if (s && s.trim()) sizeSet.add(s.trim());
+      });
+    });
+    return Array.from(sizeSet);
+  }, [scopedProducts]);
+
+  // Dynamic Materials derived from real database products
+  const dynamicMaterialOptions = useMemo(() => {
+    const matSet = new Set<string>();
+    scopedProducts.forEach((p) => {
+      if (p.material && p.material.trim()) {
+        matSet.add(p.material.trim());
+      }
+    });
+    return Array.from(matSet);
+  }, [scopedProducts]);
+
+  // Dynamic Occasions derived from real database products
+  const [selectedOccasions, setSelectedOccasions] = useState<string[]>([]);
+  const dynamicOccasionOptions = useMemo(() => {
+    const occSet = new Set<string>();
+    scopedProducts.forEach((p) => {
+      if (p.occasion && p.occasion.trim()) {
+        occSet.add(p.occasion.trim());
+      }
+    });
+    return Array.from(occSet);
+  }, [scopedProducts]);
 
   const toggleCategory = (slug: string) => {
     setSelectedCategories((prev) =>
       prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]
+    );
+  };
+
+  const toggleSubcategory = (subcat: string) => {
+    setSelectedSubcategories((prev) =>
+      prev.includes(subcat) ? prev.filter((s) => s !== subcat) : [...prev, subcat]
     );
   };
 
@@ -93,13 +199,23 @@ export const CatalogSection: React.FC<CatalogSectionProps> = ({
     );
   };
 
+  const toggleAttribute = (slug: string, val: string) => {
+    setSelectedAttributes((prev) => {
+      const current = prev[slug] || [];
+      const updated = current.includes(val) ? current.filter((v) => v !== val) : [...current, val];
+      return { ...prev, [slug]: updated };
+    });
+  };
+
   const handleResetFilters = () => {
     setSelectedCategories([]);
+    setSelectedSubcategories([]);
     setSelectedColors([]);
     setSelectedSizes([]);
     setSelectedMaterials([]);
     setSelectedOccasions([]);
-    setPriceMax(6000);
+    setSelectedAttributes({});
+    setPriceMax(15000);
     setSearchQuery('');
     setSaleOnly(false);
   };
@@ -107,9 +223,24 @@ export const CatalogSection: React.FC<CatalogSectionProps> = ({
   // Filtered and Sorted products
   const filteredProducts = useMemo(() => {
     return initialProducts.filter((p) => {
-      // Category
-      if (selectedCategories.length > 0 && !selectedCategories.includes(p.category.toLowerCase())) {
-        return false;
+      // Category Filter
+      if (selectedCategories.length > 0) {
+        const matchesCat = selectedCategories.some((slug) => {
+          const catObj = categories.find((c) => c.slug === slug || c.name.toLowerCase() === slug.toLowerCase());
+          return isProductInCategory(p.category, slug, catObj?.name);
+        });
+        if (!matchesCat) return false;
+      }
+      // Subcategory Filter
+      if (selectedSubcategories.length > 0) {
+        const pSub = (p.subcategory || '').toLowerCase();
+        const pDesc = p.description.toLowerCase();
+        const pName = p.name.toLowerCase();
+        const matchesSub = selectedSubcategories.some((selSub) => {
+          const s = selSub.toLowerCase();
+          return pSub.includes(s) || s.includes(pSub) || pDesc.includes(s) || pName.includes(s);
+        });
+        if (!matchesSub) return false;
       }
       // Sale only
       if (saleOnly && !p.isSale) {
@@ -121,28 +252,62 @@ export const CatalogSection: React.FC<CatalogSectionProps> = ({
       }
       // Color
       if (selectedColors.length > 0) {
-        const pColorNames = p.colors.map((c) => c.name);
-        if (!selectedColors.some((c) => pColorNames.includes(c))) return false;
+        const pColorNames = (p.colors || []).map((c) => c.name.toLowerCase());
+        const matchesColor = selectedColors.some((selColor) =>
+          pColorNames.some(
+            (pCol) => pCol.includes(selColor.toLowerCase()) || selColor.toLowerCase().includes(pCol)
+          )
+        );
+        if (!matchesColor) return false;
       }
       // Size
       if (selectedSizes.length > 0) {
-        if (!selectedSizes.some((s) => p.sizes.includes(s))) return false;
+        const pSizes = (p.sizes || []).map((s) => s.toLowerCase());
+        const matchesSize = selectedSizes.some((selSize) =>
+          pSizes.includes(selSize.toLowerCase())
+        );
+        if (!matchesSize) return false;
       }
       // Material
-      if (selectedMaterials.length > 0 && p.material) {
-        if (!selectedMaterials.includes(p.material)) return false;
+      if (selectedMaterials.length > 0) {
+        const pMat = (p.material || '').toLowerCase();
+        const matchesMat = selectedMaterials.some(
+          (mat) => pMat.includes(mat.toLowerCase()) || mat.toLowerCase().includes(pMat)
+        );
+        if (!matchesMat) return false;
       }
       // Occasion
-      if (selectedOccasions.length > 0 && p.occasion) {
-        if (!selectedOccasions.includes(p.occasion)) return false;
+      if (selectedOccasions.length > 0) {
+        const pOcc = (p.occasion || '').toLowerCase();
+        const matchesOcc = selectedOccasions.some(
+          (occ) => pOcc.includes(occ.toLowerCase()) || occ.toLowerCase().includes(pOcc)
+        );
+        if (!matchesOcc) return false;
       }
+      // Dynamic Attributes filter (Metadata-driven)
+      for (const [attrSlug, selVals] of Object.entries(selectedAttributes)) {
+        if (selVals && selVals.length > 0) {
+          const prodAttrVal = p.attributes?.[attrSlug];
+          if (prodAttrVal === undefined || prodAttrVal === null || prodAttrVal === '') return false;
+          if (Array.isArray(prodAttrVal)) {
+            const match = selVals.some((v) => prodAttrVal.includes(v));
+            if (!match) return false;
+          } else {
+            const strVal = String(prodAttrVal).toLowerCase();
+            const match = selVals.some((v) => strVal.includes(v.toLowerCase()));
+            if (!match) return false;
+          }
+        }
+      }
+
       // Search
       if (searchQuery.trim() !== '') {
         const query = searchQuery.toLowerCase();
         return (
           p.name.toLowerCase().includes(query) ||
           p.description.toLowerCase().includes(query) ||
-          p.category.toLowerCase().includes(query)
+          p.category.toLowerCase().includes(query) ||
+          (p.subcategory || '').toLowerCase().includes(query)
         );
       }
       return true;
@@ -154,11 +319,14 @@ export const CatalogSection: React.FC<CatalogSectionProps> = ({
     });
   }, [
     initialProducts,
+    categories,
     selectedCategories,
+    selectedSubcategories,
     selectedColors,
     selectedSizes,
     selectedMaterials,
     selectedOccasions,
+    selectedAttributes,
     priceMax,
     searchQuery,
     saleOnly,
@@ -167,12 +335,12 @@ export const CatalogSection: React.FC<CatalogSectionProps> = ({
 
   const activeFilterCount =
     selectedCategories.length +
+    selectedSubcategories.length +
     selectedColors.length +
     selectedSizes.length +
     selectedMaterials.length +
-    selectedOccasions.length +
     (saleOnly ? 1 : 0) +
-    (priceMax < 6000 ? 1 : 0);
+    (priceMax < 15000 ? 1 : 0);
 
   const currentCategoryInfo = useMemo(() => {
     if (selectedCategories.length === 1) {
@@ -205,7 +373,7 @@ export const CatalogSection: React.FC<CatalogSectionProps> = ({
         <div className="space-y-2 text-xs">
           {categories.map((cat) => {
             const isChecked = selectedCategories.includes(cat.slug);
-            const count = initialProducts.filter((p) => p.category.toLowerCase() === cat.slug).length;
+            const count = initialProducts.filter((p) => isProductInCategory(p.category, cat.slug, cat.name)).length;
             return (
               <label
                 key={cat.id}
@@ -227,53 +395,103 @@ export const CatalogSection: React.FC<CatalogSectionProps> = ({
         </div>
       </div>
 
-      {/* COLOR Filter */}
-      <div className="space-y-3 pt-4 border-t border-[#E7E2DA]">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-[#1A1A1A]">Color Palette</h4>
-        <div className="flex flex-wrap gap-2">
-          {colorOptions.map((c) => {
-            const isSelected = selectedColors.includes(c.name);
-            return (
+      {/* DYNAMIC SUB-CATEGORY / STYLE Filter */}
+      {dynamicSubcategories.length > 0 && (
+        <div className="space-y-3 pt-4 border-t border-[#E7E2DA]">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#1A1A1A]">
+              Sub-Category & Style
+            </h4>
+            {selectedSubcategories.length > 0 && (
               <button
-                key={c.name}
-                onClick={() => toggleColor(c.name)}
-                className={`w-7 h-7 rounded-full border relative flex items-center justify-center transition-all ${
-                  isSelected ? 'ring-2 ring-[#1A1A1A] ring-offset-2 scale-110' : 'border-gray-300 hover:scale-105'
-                }`}
-                style={{ backgroundColor: c.hex }}
-                title={c.name}
+                onClick={() => setSelectedSubcategories([])}
+                className="text-[10px] text-gray-500 hover:text-black font-semibold"
               >
-                {isSelected && (
-                  <Check className={`w-3.5 h-3.5 ${c.hex === '#FAFAFA' || c.hex === '#FFFFFF' ? 'text-black' : 'text-white'}`} />
-                )}
+                Reset
               </button>
-            );
-          })}
-        </div>
-      </div>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {dynamicSubcategories.map((subcat) => {
+              const isSelected = selectedSubcategories.includes(subcat);
+              const count = scopedProducts.filter((p) => {
+                const pSub = (p.subcategory || '').toLowerCase();
+                const pDesc = p.description.toLowerCase();
+                const pName = p.name.toLowerCase();
+                const s = subcat.toLowerCase();
+                return pSub.includes(s) || s.includes(pSub) || pDesc.includes(s) || pName.includes(s);
+              }).length;
 
-      {/* SIZE Filter */}
-      <div className="space-y-3 pt-4 border-t border-[#E7E2DA]">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-[#1A1A1A]">Size</h4>
-        <div className="flex flex-wrap gap-1.5">
-          {sizeOptions.map((sz) => {
-            const isSelected = selectedSizes.includes(sz);
-            return (
-              <button
-                key={sz}
-                onClick={() => toggleSize(sz)}
-                className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${
-                  isSelected
-                    ? 'bg-[#1A1A1A] text-white border-[#1A1A1A] shadow-sm'
-                    : 'bg-[#FAF8F5] text-gray-700 border-[#E7E2DA] hover:border-gray-400'
-                }`}
-              >
-                {sz}
-              </button>
-            );
-          })}
+              return (
+                <button
+                  key={subcat}
+                  onClick={() => toggleSubcategory(subcat)}
+                  className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 border ${
+                    isSelected
+                      ? 'bg-[#1A1A1A] text-white border-[#1A1A1A] shadow-xs'
+                      : 'bg-white text-gray-700 border-[#E7E2DA] hover:border-[#C5A880] hover:bg-[#FAF8F5]'
+                  }`}
+                >
+                  <span>{subcat}</span>
+                  <span className={`text-[10px] ${isSelected ? 'text-[#C5A880]' : 'text-gray-400'}`}>({count})</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* DYNAMIC COLOR PALETTE Filter */}
+      {dynamicColorOptions.length > 0 && (
+        <div className="space-y-3 pt-4 border-t border-[#E7E2DA]">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-[#1A1A1A]">Color Palette</h4>
+          <div className="flex flex-wrap gap-2">
+            {dynamicColorOptions.map((c) => {
+              const isSelected = selectedColors.includes(c.name) || selectedColors.includes(c.rawName);
+              return (
+                <button
+                  key={c.name}
+                  onClick={() => toggleColor(c.name)}
+                  className={`w-7 h-7 rounded-full border relative flex items-center justify-center transition-all ${
+                    isSelected ? 'ring-2 ring-[#1A1A1A] ring-offset-2 scale-110' : 'border-gray-300 hover:scale-105'
+                  }`}
+                  style={{ backgroundColor: c.hex }}
+                  title={c.name}
+                >
+                  {isSelected && (
+                    <Check className={`w-3.5 h-3.5 ${c.hex === '#FAFAFA' || c.hex === '#FFFFFF' ? 'text-black' : 'text-white'}`} />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* DYNAMIC SIZE Filter */}
+      {dynamicSizeOptions.length > 0 && (
+        <div className="space-y-3 pt-4 border-t border-[#E7E2DA]">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-[#1A1A1A]">Size</h4>
+          <div className="flex flex-wrap gap-1.5">
+            {dynamicSizeOptions.map((sz) => {
+              const isSelected = selectedSizes.includes(sz);
+              return (
+                <button
+                  key={sz}
+                  onClick={() => toggleSize(sz)}
+                  className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${
+                    isSelected
+                      ? 'bg-[#1A1A1A] text-white border-[#1A1A1A] shadow-sm'
+                      : 'bg-[#FAF8F5] text-gray-700 border-[#E7E2DA] hover:border-gray-400'
+                  }`}
+                >
+                  {sz}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* PRICE RANGE Filter (ETB) */}
       <div className="space-y-3 pt-4 border-t border-[#E7E2DA]">
@@ -284,59 +502,149 @@ export const CatalogSection: React.FC<CatalogSectionProps> = ({
         <input
           type="range"
           min="1000"
-          max="6000"
-          step="200"
+          max="15000"
+          step="500"
           value={priceMax}
           onChange={(e) => setPriceMax(Number(e.target.value))}
           className="w-full accent-[#1A1A1A]"
         />
       </div>
 
-      {/* MATERIAL Filter */}
-      <div className="space-y-3 pt-4 border-t border-[#E7E2DA]">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-[#1A1A1A]">Material</h4>
-        <div className="flex flex-wrap gap-1.5">
-          {materialOptions.map((mat) => {
-            const isSelected = selectedMaterials.includes(mat);
-            return (
-              <button
-                key={mat}
-                onClick={() => toggleMaterial(mat)}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all border ${
-                  isSelected
-                    ? 'bg-[#1A1A1A] text-white border-[#1A1A1A]'
-                    : 'bg-white text-gray-600 border-[#E7E2DA] hover:border-gray-400'
-                }`}
-              >
-                {mat}
-              </button>
-            );
-          })}
+      {/* DYNAMIC MATERIAL Filter */}
+      {dynamicMaterialOptions.length > 0 && (
+        <div className="space-y-3 pt-4 border-t border-[#E7E2DA]">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-[#1A1A1A]">Material</h4>
+          <div className="flex flex-wrap gap-1.5">
+            {dynamicMaterialOptions.map((mat) => {
+              const isSelected = selectedMaterials.includes(mat);
+              return (
+                <button
+                  key={mat}
+                  onClick={() => toggleMaterial(mat)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all border ${
+                    isSelected
+                      ? 'bg-[#1A1A1A] text-white border-[#1A1A1A]'
+                      : 'bg-white text-gray-600 border-[#E7E2DA] hover:border-gray-400'
+                  }`}
+                >
+                  {mat}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* OCCASION Filter */}
-      <div className="space-y-3 pt-4 border-t border-[#E7E2DA]">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-[#1A1A1A]">Occasion</h4>
-        <div className="flex flex-wrap gap-1.5">
-          {occasionOptions.map((occ) => {
-            const isSelected = selectedOccasions.includes(occ);
-            return (
-              <button
-                key={occ}
-                onClick={() => toggleOccasion(occ)}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all border ${
-                  isSelected
-                    ? 'bg-[#C5A880] text-black font-bold border-[#C5A880]'
-                    : 'bg-white text-gray-600 border-[#E7E2DA] hover:border-gray-400'
-                }`}
-              >
-                {occ}
-              </button>
-            );
-          })}
+      {/* DYNAMIC OCCASION Filter */}
+      {dynamicOccasionOptions.length > 0 && (
+        <div className="space-y-3 pt-4 border-t border-[#E7E2DA]">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-[#1A1A1A]">Occasion & Collection</h4>
+          <div className="flex flex-wrap gap-1.5">
+            {dynamicOccasionOptions.map((occ) => {
+              const isSelected = selectedOccasions.includes(occ);
+              return (
+                <button
+                  key={occ}
+                  onClick={() => toggleOccasion(occ)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all border ${
+                    isSelected
+                      ? 'bg-[#1A1A1A] text-white border-[#1A1A1A]'
+                      : 'bg-white text-gray-600 border-[#E7E2DA] hover:border-gray-400'
+                  }`}
+                >
+                  {occ}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* METADATA-DRIVEN DYNAMIC FILTERS (AUTOMATICALLY GENERATED FROM ADMIN SCHEMA) */}
+      {propertyDefs
+        .filter(
+          (pdef) =>
+            pdef.filterable &&
+            (selectedCategories.length === 0 ||
+              pdef.categoryIds.includes('all') ||
+              selectedCategories.some((sc) => pdef.categoryIds.includes(sc)))
+        )
+        .map((pdef) => {
+          const selVals = selectedAttributes[pdef.slug] || [];
+
+          // Collect active options either from pdef.options or derived from scoped products
+          const availableOptions: { name: string; value: string; hex?: string }[] = [];
+          if (pdef.options && pdef.options.length > 0) {
+            pdef.options.forEach((opt) => availableOptions.push({ name: opt.name, value: opt.value, hex: opt.hex }));
+          } else {
+            const derived = new Set<string>();
+            scopedProducts.forEach((p) => {
+              const val = p.attributes?.[pdef.slug];
+              if (val) {
+                if (Array.isArray(val)) val.forEach((v) => derived.add(String(v)));
+                else derived.add(String(val));
+              }
+            });
+            Array.from(derived).forEach((val) => availableOptions.push({ name: val, value: val }));
+          }
+
+          if (availableOptions.length === 0) return null;
+
+          return (
+            <div key={pdef.id} className="space-y-3 pt-4 border-t border-[#E7E2DA]">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[#1A1A1A]">
+                  {pdef.name} {pdef.unit ? `(${pdef.unit})` : ''}
+                </h4>
+                {selVals.length > 0 && (
+                  <span className="text-[10px] text-[#C5A880] font-bold">({selVals.length})</span>
+                )}
+              </div>
+
+              {/* Color swatch rendering */}
+              {pdef.type === 'color' ? (
+                <div className="flex flex-wrap gap-2">
+                  {availableOptions.map((opt) => {
+                    const isSelected = selVals.includes(opt.value);
+                    return (
+                      <button
+                        key={opt.value}
+                        onClick={() => toggleAttribute(pdef.slug, opt.value)}
+                        className={`w-7 h-7 rounded-full border border-black/20 flex items-center justify-center transition-all ${
+                          isSelected ? 'ring-2 ring-black scale-110' : 'hover:scale-105'
+                        }`}
+                        style={{ backgroundColor: opt.hex || '#1A1A1A' }}
+                        title={opt.name}
+                      >
+                        {isSelected && <Check className="w-3.5 h-3.5 text-white drop-shadow-md" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* Chip / Pill rendering for select, multi_select, number, boolean, text */
+                <div className="flex flex-wrap gap-1.5">
+                  {availableOptions.map((opt) => {
+                    const isSelected = selVals.includes(opt.value);
+                    return (
+                      <button
+                        key={opt.value}
+                        onClick={() => toggleAttribute(pdef.slug, opt.value)}
+                        className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all border ${
+                          isSelected
+                            ? 'bg-[#1A1A1A] text-white border-[#1A1A1A]'
+                            : 'bg-white text-gray-600 border-[#E7E2DA] hover:border-gray-400'
+                        }`}
+                      >
+                        {opt.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
     </div>
   );
 
@@ -447,6 +755,50 @@ export const CatalogSection: React.FC<CatalogSectionProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Dynamic Sub-Category Quick Filter Bar */}
+        {dynamicSubcategories.length > 0 && (
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 scrollbar-none">
+            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
+              <Tag className="w-3.5 h-3.5 text-[#C5A880]" /> Styles:
+            </span>
+            <button
+              onClick={() => setSelectedSubcategories([])}
+              className={`px-3 py-1 rounded-full text-xs font-bold shrink-0 transition-all border ${
+                selectedSubcategories.length === 0
+                  ? 'bg-[#1A1A1A] text-white border-[#1A1A1A] shadow-xs'
+                  : 'bg-white text-gray-700 border-[#E7E2DA] hover:border-gray-400'
+              }`}
+            >
+              All ({scopedProducts.length})
+            </button>
+            {dynamicSubcategories.map((subcat) => {
+              const isSelected = selectedSubcategories.includes(subcat);
+              const count = scopedProducts.filter((p) => {
+                const pSub = (p.subcategory || '').toLowerCase();
+                const pDesc = p.description.toLowerCase();
+                const pName = p.name.toLowerCase();
+                const s = subcat.toLowerCase();
+                return pSub.includes(s) || s.includes(pSub) || pDesc.includes(s) || pName.includes(s);
+              }).length;
+
+              return (
+                <button
+                  key={subcat}
+                  onClick={() => toggleSubcategory(subcat)}
+                  className={`px-3 py-1 rounded-full text-xs font-bold shrink-0 transition-all border flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-[#1A1A1A] text-white border-[#1A1A1A] shadow-xs'
+                      : 'bg-white text-gray-700 border-[#E7E2DA] hover:border-[#C5A880] hover:bg-[#FAF8F5]'
+                  }`}
+                >
+                  <span>{subcat}</span>
+                  <span className={`text-[10px] ${isSelected ? 'text-[#C5A880]' : 'text-gray-400'}`}>({count})</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Main Layout Grid */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">

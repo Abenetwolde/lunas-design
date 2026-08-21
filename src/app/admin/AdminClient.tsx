@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Product, Category, OrderInquiry, SiteSettings, ColorOption } from '../../types';
+import { Product, Category, SubCategory, ProductProperty, PropertyDefinition, PropertyOption, PropertyType, OrderInquiry, SiteSettings, ColorOption } from '../../types';
 import {
   createProduct,
   updateProduct,
@@ -11,12 +11,24 @@ import {
   createCategory,
   updateCategory,
   deleteCategory,
+  getSubcategories,
+  createSubcategory,
+  updateSubcategory,
+  deleteSubcategory,
+  getProductProperties,
+  createProductProperty,
+  deleteProductProperty,
+  getPropertyDefinitions,
+  createPropertyDefinition,
+  updatePropertyDefinition,
+  deletePropertyDefinition,
   updateOrderStatus,
   getProducts,
   getOrders,
   getCategories,
   getSiteSettings,
   updateSiteSettings,
+  isProductInCategory,
   supabase,
 } from '../../lib/supabase';
 import { uploadImageToSupabase } from '../../lib/supabaseStorage';
@@ -27,6 +39,7 @@ import {
   Layers,
   Send,
   Sliders,
+  SlidersHorizontal,
   Plus,
   Trash2,
   Edit,
@@ -63,14 +76,16 @@ import {
 interface Props {
   initialProducts: Product[];
   initialCategories: Category[];
+  initialSubcategories?: SubCategory[];
   initialOrders: OrderInquiry[];
   initialSettings?: SiteSettings;
-  initialTab?: 'overview' | 'products' | 'categories' | 'orders' | 'site';
+  initialTab?: 'overview' | 'products' | 'categories' | 'subcategories' | 'orders' | 'site';
 }
 
 export default function AdminClient({
   initialProducts,
   initialCategories,
+  initialSubcategories = [],
   initialOrders,
   initialSettings,
   initialTab = 'overview',
@@ -86,10 +101,19 @@ export default function AdminClient({
   // Data states
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [categories, setCategories] = useState<Category[]>(initialCategories);
+  const [subcategories, setSubcategories] = useState<SubCategory[]>(initialSubcategories);
+  const [properties, setProperties] = useState<ProductProperty[]>([]);
   const [orders, setOrders] = useState<OrderInquiry[]>(initialOrders);
 
+  // Dynamic Property modal states
+  const [showPropModal, setShowPropModal] = useState(false);
+  const [propType, setPropType] = useState<'material' | 'occasion' | 'tag'>('material');
+  const [propName, setPropName] = useState('');
+  const [propDesc, setPropDesc] = useState('');
+  const [propBadgeColor, setPropBadgeColor] = useState('#C5A880');
+
   // Sidebar & Navigation states
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'categories' | 'orders' | 'site'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'categories' | 'subcategories' | 'properties' | 'orders' | 'site'>(initialTab as any);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
@@ -179,6 +203,7 @@ export default function AdminClient({
   // Rich Product Form Fields
   const [pName, setPName] = useState('');
   const [pCategory, setPCategory] = useState('dresses');
+  const [pSubcategory, setPSubcategory] = useState('');
   const [pPrice, setPPrice] = useState('3500');
   const [pOrigPrice, setPOrigPrice] = useState('4200');
   const [pDesc, setPDesc] = useState('');
@@ -211,14 +236,57 @@ export default function AdminClient({
   const [catSlug, setCatSlug] = useState('');
   const [catImage, setCatImage] = useState('');
   const [catDesc, setCatDesc] = useState('');
+  const [catSubcategories, setCatSubcategories] = useState('');
 
-  // Order Details Modal state
-  const [selectedOrder, setSelectedOrder] = useState<OrderInquiry | null>(null);
+  // SubCategory Modal state (Separate Interface Create & Edit)
+  const [showSubModal, setShowSubModal] = useState(false);
+  const [editingSubId, setEditingSubId] = useState<string | null>(null);
+  const [subName, setSubName] = useState('');
+  const [subSlug, setSubSlug] = useState('');
+  const [subCategorySlug, setSubCategorySlug] = useState('dresses');
+  const [subDesc, setSubDesc] = useState('');
+  const [subBadgeColor, setSubBadgeColor] = useState('#C5A880');
+  const [subSaving, setSubSaving] = useState(false);
+  // Dynamic Property Definition Metadata Studio state
+  const [propertyDefinitions, setPropertyDefinitions] = useState<PropertyDefinition[]>([]);
+  const [showPropDefModal, setShowPropDefModal] = useState(false);
+  const [editingPropDefId, setEditingPropDefId] = useState<string | null>(null);
+  const [defName, setDefName] = useState('');
+  const [defSlug, setDefSlug] = useState('');
+  const [defType, setDefType] = useState<PropertyType>('select');
+  const [defDesc, setDefDesc] = useState('');
+  const [defUnit, setDefUnit] = useState('');
+  const [defOptions, setDefOptions] = useState<PropertyOption[]>([]);
+  const [defCategoryIds, setDefCategoryIds] = useState<string[]>(['all']);
+  const [defFilterable, setDefFilterable] = useState(true);
+  const [defVariant, setDefVariant] = useState(false);
+  const [defRequired, setDefRequired] = useState(false);
+  const [defShowOnProductPage, setDefShowOnProductPage] = useState(true);
+  const [defShowOnProductCard, setDefShowOnProductCard] = useState(false);
+  const [defDisplayOrder, setDefDisplayOrder] = useState(1);
+  const [defSaving, setDefSaving] = useState(false);
 
-  // Copy SQL state
-  const [sqlCopied, setSqlCopied] = useState(false);
+  // New option input state inside property def modal
+  const [newOptName, setNewOptName] = useState('');
+  const [newOptValue, setNewOptValue] = useState('');
+  const [newOptHex, setNewOptHex] = useState('#1A1A1A');
+
+  // Telegram Orders state
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [subParentFilter, setSubParentFilter] = useState<string>('all');
+
+  // Dynamic Product Attributes state (for Product Atelier)
+  const [pAttributes, setPAttributes] = useState<Record<string, any>>({});
 
   // Pure Supabase & Admin Session check
+  useEffect(() => {
+    getProductProperties().then((data) => setProperties(data));
+    getPropertyDefinitions().then((data) => setPropertyDefinitions(data));
+    if (!initialSubcategories || initialSubcategories.length === 0) {
+      getSubcategories().then((data) => setSubcategories(data));
+    }
+  }, []);
+
   useEffect(() => {
     const checkAuth = async () => {
       const { data } = await supabase.auth.getSession();
@@ -275,6 +343,7 @@ export default function AdminClient({
     setPName('');
     setPCategory(categories[0]?.slug || 'dresses');
     setPPrice('2500');
+    setPSubcategory('');
     setPOrigPrice(''); // Empty by default (Optional)
     setPDesc('Handcrafted authentic Ethiopian fashion garment.');
     setPMaterial('Ethiopian Fine Cotton');
@@ -293,6 +362,7 @@ export default function AdminClient({
     setPIsNew(true);
     setPIsSale(false);
     setPInStock(true);
+    setPAttributes({});
     setShowProductModal(true);
   };
 
@@ -300,6 +370,7 @@ export default function AdminClient({
     setEditingProductId(prod.id);
     setPName(prod.name);
     setPCategory(prod.category);
+    setPSubcategory(prod.subcategory || '');
     setPPrice(prod.price.toString());
     setPOrigPrice(prod.originalPrice ? prod.originalPrice.toString() : '');
     setPDesc(prod.description);
@@ -316,6 +387,7 @@ export default function AdminClient({
     setPIsNew(Boolean(prod.isNew));
     setPIsSale(Boolean(prod.isSale));
     setPInStock(prod.inStock !== false);
+    setPAttributes(prod.attributes || {});
     setShowProductModal(true);
   };
 
@@ -387,6 +459,7 @@ export default function AdminClient({
     const prodData: Partial<Product> = {
       name: pName,
       category: pCategory,
+      subcategory: pSubcategory || undefined,
       price: Number(pPrice),
       originalPrice: hasOrigPrice ? Number(pOrigPrice) : undefined,
       description: pDesc || 'Handcrafted Habesha garment.',
@@ -403,6 +476,7 @@ export default function AdminClient({
       inStock: pInStock,
       sizes: pSizes,
       colors: pColors,
+      attributes: pAttributes,
     };
 
     if (editingProductId) {
@@ -439,6 +513,7 @@ export default function AdminClient({
     setCatSlug('');
     setCatImage('/images/hero.jpg');
     setCatDesc('');
+    setCatSubcategories('');
     setShowCatModal(true);
   };
 
@@ -448,6 +523,7 @@ export default function AdminClient({
     setCatSlug(cat.slug);
     setCatImage(cat.image);
     setCatDesc(cat.description || '');
+    setCatSubcategories((cat.subcategories || []).join(', '));
     setShowCatModal(true);
   };
 
@@ -457,6 +533,10 @@ export default function AdminClient({
 
     setLoading(true);
     const slug = catSlug || catName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    const subcats = catSubcategories
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
 
     if (editingCatId) {
       await updateCategory(editingCatId, {
@@ -464,6 +544,7 @@ export default function AdminClient({
         slug,
         image: catImage || '/images/hero.jpg',
         description: catDesc,
+        subcategories: subcats,
       });
       showToast(`Updated category "${catName}"`);
     } else {
@@ -472,6 +553,7 @@ export default function AdminClient({
         slug,
         image: catImage || '/images/hero.jpg',
         description: catDesc,
+        subcategories: subcats,
       });
       showToast(`Created category "${catName}"`);
     }
@@ -486,6 +568,224 @@ export default function AdminClient({
       await deleteCategory(id);
       setCategories(categories.filter((c) => c.id !== id));
       showToast(`Deleted category "${name}"`);
+    }
+  };
+
+  // SubCategory Handlers (Separate Interface Create & Edit)
+  const handleOpenAddSubcategory = () => {
+    setEditingSubId(null);
+    setSubName('');
+    setSubSlug('');
+    setSubCategorySlug(categories[0]?.slug || 'dresses');
+    setSubDesc('');
+    setSubBadgeColor('#C5A880');
+    setShowSubModal(true);
+  };
+
+  const handleOpenEditSubcategory = (sub: SubCategory) => {
+    setEditingSubId(sub.id);
+    setSubName(sub.name);
+    setSubSlug(sub.slug);
+    setSubCategorySlug(sub.categorySlug);
+    setSubDesc(sub.description || '');
+    setSubBadgeColor(sub.badgeColor || '#C5A880');
+    setShowSubModal(true);
+  };
+
+  const handleSaveSubcategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!subName) return;
+
+    setSubSaving(true);
+    const slug = subSlug || subName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+
+    if (editingSubId) {
+      await updateSubcategory(editingSubId, {
+        name: subName,
+        slug,
+        categorySlug: subCategorySlug,
+        description: subDesc,
+        badgeColor: subBadgeColor,
+      });
+      showToast(`Updated subcategory "${subName}"`);
+    } else {
+      await createSubcategory({
+        name: subName,
+        slug,
+        categorySlug: subCategorySlug,
+        description: subDesc,
+        badgeColor: subBadgeColor,
+      });
+      showToast(`Created new subcategory "${subName}"`);
+    }
+
+    const updated = await getSubcategories();
+    setSubcategories(updated);
+    const updatedCats = await getCategories();
+    setCategories(updatedCats);
+    setSubSaving(false);
+    setShowSubModal(false);
+  };
+
+  const handleDeleteSubcategory = async (id: string, name: string) => {
+    if (confirm(`Delete subcategory style "${name}"?`)) {
+      await deleteSubcategory(id);
+      setSubcategories(subcategories.filter((s) => s.id !== id));
+      showToast(`Deleted subcategory "${name}"`);
+    }
+  };
+
+  // Product Property Handlers (Materials, Occasions, Custom Tags)
+  const handleOpenAddProperty = (type: 'material' | 'occasion' | 'tag') => {
+    setPropType(type);
+    setPropName('');
+    setPropDesc('');
+    setPropBadgeColor('#C5A880');
+    setShowPropModal(true);
+  };
+
+  const handleSaveProperty = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!propName) return;
+
+    await createProductProperty({
+      type: propType,
+      name: propName,
+      description: propDesc,
+      badgeColor: propBadgeColor,
+    });
+
+    const updated = await getProductProperties();
+    setProperties(updated);
+    showToast(`Created new ${propType}: "${propName}"`);
+    setShowPropModal(false);
+  };
+
+  const handleDeleteProperty = async (id: string, name: string) => {
+    if (confirm(`Delete property "${name}"?`)) {
+      await deleteProductProperty(id);
+      setProperties(properties.filter((p) => p.id !== id));
+      showToast(`Deleted property "${name}"`);
+    }
+  };
+
+  // Property Definition Metadata Studio Handlers
+  const handleOpenAddPropDef = () => {
+    setEditingPropDefId(null);
+    setDefName('');
+    setDefSlug('');
+    setDefType('select');
+    setDefDesc('');
+    setDefUnit('');
+    setDefOptions([]);
+    setDefCategoryIds(['all']);
+    setDefFilterable(true);
+    setDefVariant(false);
+    setDefRequired(false);
+    setDefShowOnProductPage(true);
+    setDefShowOnProductCard(false);
+    setDefDisplayOrder(propertyDefinitions.length + 1);
+    setNewOptName('');
+    setNewOptValue('');
+    setNewOptHex('#1A1A1A');
+    setShowPropDefModal(true);
+  };
+
+  const handleOpenEditPropDef = (pdef: PropertyDefinition) => {
+    setEditingPropDefId(pdef.id);
+    setDefName(pdef.name);
+    setDefSlug(pdef.slug);
+    setDefType(pdef.type);
+    setDefDesc(pdef.description || '');
+    setDefUnit(pdef.unit || '');
+    setDefOptions(pdef.options || []);
+    setDefCategoryIds(pdef.categoryIds || ['all']);
+    setDefFilterable(pdef.filterable);
+    setDefVariant(pdef.variant);
+    setDefRequired(pdef.required);
+    setDefShowOnProductPage(pdef.showOnProductPage);
+    setDefShowOnProductCard(pdef.showOnProductCard);
+    setDefDisplayOrder(pdef.displayOrder || 1);
+    setNewOptName('');
+    setNewOptValue('');
+    setNewOptHex('#1A1A1A');
+    setShowPropDefModal(true);
+  };
+
+  const handleAddPropDefOption = () => {
+    if (!newOptName.trim()) return;
+    const optVal = newOptValue.trim() || newOptName.trim();
+    const newOpt: PropertyOption = {
+      id: `opt-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      name: newOptName.trim(),
+      value: optVal,
+      hex: defType === 'color' ? newOptHex : undefined,
+    };
+    setDefOptions([...defOptions, newOpt]);
+    setNewOptName('');
+    setNewOptValue('');
+  };
+
+  const handleRemovePropDefOption = (id: string) => {
+    setDefOptions(defOptions.filter((o) => o.id !== id));
+  };
+
+  const handleToggleDefCategory = (catSlug: string) => {
+    if (catSlug === 'all') {
+      setDefCategoryIds(['all']);
+      return;
+    }
+    const currentWithoutAll = defCategoryIds.filter((c) => c !== 'all');
+    if (currentWithoutAll.includes(catSlug)) {
+      const next = currentWithoutAll.filter((c) => c !== catSlug);
+      setDefCategoryIds(next.length === 0 ? ['all'] : next);
+    } else {
+      setDefCategoryIds([...currentWithoutAll, catSlug]);
+    }
+  };
+
+  const handleSavePropDef = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!defName.trim()) return;
+
+    setDefSaving(true);
+    const slug = defSlug.trim() || defName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+
+    const propData: Partial<PropertyDefinition> = {
+      name: defName.trim(),
+      slug,
+      type: defType,
+      description: defDesc,
+      unit: defUnit,
+      options: defOptions,
+      categoryIds: defCategoryIds,
+      filterable: defFilterable,
+      variant: defVariant,
+      required: defRequired,
+      showOnProductPage: defShowOnProductPage,
+      showOnProductCard: defShowOnProductCard,
+      displayOrder: Number(defDisplayOrder) || 1,
+    };
+
+    if (editingPropDefId) {
+      await updatePropertyDefinition(editingPropDefId, propData);
+      showToast(`Updated property definition "${defName}"`);
+    } else {
+      await createPropertyDefinition(propData);
+      showToast(`Created new property definition "${defName}"`);
+    }
+
+    const updated = await getPropertyDefinitions();
+    setPropertyDefinitions(updated);
+    setShowPropDefModal(false);
+    setDefSaving(false);
+  };
+
+  const handleDeletePropDef = async (id: string, name: string) => {
+    if (confirm(`Delete property definition "${name}"? Stores and filters will automatically update.`)) {
+      await deletePropertyDefinition(id);
+      setPropertyDefinitions(propertyDefinitions.filter((p) => p.id !== id));
+      showToast(`Deleted property "${name}"`);
     }
   };
 
@@ -530,11 +830,12 @@ export default function AdminClient({
     { id: 'overview', label: 'Overview & Stats', icon: LayoutDashboard },
     { id: 'products', label: 'Products & Inventory', icon: ShoppingBag, badge: products.length },
     { id: 'categories', label: 'Categories', icon: Layers, badge: categories.length },
+    { id: 'subcategories', label: 'Sub-Categories / Styles', icon: Tag, badge: subcategories.length },
     { id: 'orders', label: 'Telegram Orders', icon: Send, badge: pendingOrdersCount ? `${pendingOrdersCount} pending` : orders.length },
     { id: 'site', label: 'Site Content & Hero', icon: Sliders },
   ];
 
-  const handleTabClick = (tabId: 'overview' | 'products' | 'categories' | 'orders' | 'site') => {
+  const handleTabClick = (tabId: 'overview' | 'products' | 'categories' | 'subcategories' | 'orders' | 'site') => {
     setActiveTab(tabId);
     setMobileSidebarOpen(false);
     if (tabId === 'overview') {
@@ -995,33 +1296,410 @@ export default function AdminClient({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {categories.map((cat) => (
-                <div key={cat.id} className="bg-white rounded-3xl p-5 border border-[#E7E2DA] shadow-xs space-y-4 flex flex-col justify-between">
-                  <div className="space-y-3">
-                    <img src={cat.image} alt={cat.name} className="w-full h-40 object-cover rounded-2xl border" />
-                    <div>
-                      <span className="text-[10px] font-bold uppercase text-[#C5A880] tracking-wider block">
-                        {cat.slug}
+              {categories.map((cat) => {
+                const liveCount = products.filter((p) => isProductInCategory(p.category, cat.slug, cat.name)).length;
+
+                return (
+                  <div key={cat.id} className="bg-white rounded-3xl p-5 border border-[#E7E2DA] shadow-xs space-y-4 flex flex-col justify-between">
+                    <div className="space-y-3">
+                      <img src={cat.image} alt={cat.name} className="w-full h-40 object-cover rounded-2xl border" />
+                      <div>
+                        <span className="text-[10px] font-bold uppercase text-[#C5A880] tracking-wider block">
+                          {cat.slug}
+                        </span>
+                        <h3 className="font-bold text-base text-[#1A1A1A]">{cat.name}</h3>
+                        <p className="text-xs text-gray-500 mt-1 line-clamp-2">{cat.description || 'Fashion collection'}</p>
+
+                        {cat.subcategories && cat.subcategories.length > 0 && (
+                          <div className="flex flex-wrap gap-1 pt-2">
+                            {cat.subcategories.map((sc) => (
+                              <span key={sc} className="px-2 py-0.5 bg-[#FAF8F5] border border-[#E7E2DA] rounded-md text-[10px] font-semibold text-gray-700">
+                                {sc}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-[#E7E2DA] flex items-center justify-between text-xs">
+                      <span className="font-bold text-gray-900 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+                        {liveCount} Active Products
                       </span>
-                      <h3 className="font-bold text-base text-[#1A1A1A]">{cat.name}</h3>
-                      <p className="text-xs text-gray-500 mt-1 line-clamp-2">{cat.description || 'Fashion collection'}</p>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleOpenEditCategory(cat)}
+                          className="p-1.5 text-gray-500 hover:text-[#C5A880] transition-colors"
+                          title="Edit Category"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCategory(cat.id, cat.name)}
+                          className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
+                          title="Delete Category"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* SUBCATEGORIES & STYLE FILTERS MANAGEMENT TAB */}
+        {activeTab === 'subcategories' && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+              <div>
+                <h2 className="font-serif text-3xl font-bold text-[#1A1A1A]">Sub-Categories & Style Filters</h2>
+                <p className="text-xs text-gray-500 mt-1">Dedicated management for storefront style tags, filter badges, and taxonomy groups</p>
+              </div>
+
+              <button
+                onClick={handleOpenAddSubcategory}
+                className="px-5 py-3 bg-[#1A1A1A] hover:bg-[#C5A880] text-white text-xs font-bold uppercase tracking-wider rounded-2xl transition-colors shadow-md flex items-center justify-center gap-2 shrink-0"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Sub-Category / Style</span>
+              </button>
+            </div>
+
+            {/* Filter by Parent Category Bar */}
+            <div className="p-4 bg-white rounded-3xl border border-[#E7E2DA] shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <Tag className="w-4 h-4 text-[#C5A880]" />
+                <span className="text-xs font-bold text-gray-800 uppercase tracking-wider">Filter by Parent Category:</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setSubParentFilter('all')}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all border ${
+                    subParentFilter === 'all'
+                      ? 'bg-[#1A1A1A] text-white border-[#1A1A1A]'
+                      : 'bg-white text-gray-700 border-[#E7E2DA] hover:border-gray-400'
+                  }`}
+                >
+                  All ({subcategories.length})
+                </button>
+                {categories.map((c) => {
+                  const count = subcategories.filter((s) => s.categorySlug.toLowerCase() === c.slug.toLowerCase() || s.categorySlug.toLowerCase() === c.name.toLowerCase()).length;
+                  const isSelected = subParentFilter === c.slug;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => setSubParentFilter(c.slug)}
+                      className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all border ${
+                        isSelected
+                          ? 'bg-[#1A1A1A] text-white border-[#1A1A1A]'
+                          : 'bg-white text-gray-700 border-[#E7E2DA] hover:border-[#C5A880]'
+                      }`}
+                    >
+                      {c.name} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Sub-Categories Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {subcategories
+                .filter((sub) => {
+                  if (subParentFilter === 'all') return true;
+                  const parentCat = categories.find((c) => c.slug === subParentFilter);
+                  return (
+                    sub.categorySlug.toLowerCase() === subParentFilter.toLowerCase() ||
+                    (parentCat && sub.categorySlug.toLowerCase() === parentCat.name.toLowerCase())
+                  );
+                })
+                .map((sub) => {
+                  const liveCount = products.filter((p) => {
+                    const pSub = (p.subcategory || '').toLowerCase();
+                    const pDesc = p.description.toLowerCase();
+                    const pName = p.name.toLowerCase();
+                    const s = sub.name.toLowerCase();
+                    return pSub.includes(s) || s.includes(pSub) || pDesc.includes(s) || pName.includes(s);
+                  }).length;
+
+                  const parentCat = categories.find(
+                    (c) => c.slug.toLowerCase() === sub.categorySlug.toLowerCase() || c.name.toLowerCase() === sub.categorySlug.toLowerCase()
+                  );
+
+                  return (
+                    <div
+                      key={sub.id}
+                      className="bg-white rounded-3xl p-5 border border-[#E7E2DA] shadow-xs space-y-4 flex flex-col justify-between hover:border-[#C5A880] transition-colors"
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-gray-100 text-gray-800 border border-gray-200">
+                            {parentCat?.name || sub.categorySlug}
+                          </span>
+                          <span
+                            className="w-3.5 h-3.5 rounded-full border border-black/20 shadow-xs"
+                            style={{ backgroundColor: sub.badgeColor || '#C5A880' }}
+                            title={`Badge theme: ${sub.badgeColor}`}
+                          />
+                        </div>
+
+                        <div>
+                          <h3 className="font-bold text-base text-[#1A1A1A] flex items-center gap-2">
+                            <Tag className="w-4 h-4 text-[#C5A880]" />
+                            <span>{sub.name}</span>
+                          </h3>
+                          <span className="text-[10px] text-gray-400 font-mono block mt-0.5">slug: /{sub.slug}</span>
+                          <p className="text-xs text-gray-500 mt-2 line-clamp-2">
+                            {sub.description || 'Custom fashion style classification'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="pt-3 border-t border-[#E7E2DA] flex items-center justify-between text-xs">
+                        <span className="font-bold text-gray-900 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+                          {liveCount} Products
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleOpenEditSubcategory(sub)}
+                            className="p-1.5 text-gray-500 hover:text-[#C5A880] transition-colors"
+                            title="Edit Sub-Category"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSubcategory(sub.id, sub.name)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
+                            title="Delete Sub-Category"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+            {/* DYNAMIC MATERIALS / FABRICS MANAGEMENT */}
+            <div className="pt-8 space-y-4 border-t border-[#E7E2DA]">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                <div>
+                  <h3 className="font-serif text-2xl font-bold text-[#1A1A1A]">Dynamic Materials & Fabrics</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Admin-managed fabric options surfaced in Product creation & Client storefront filter</p>
+                </div>
+                <button
+                  onClick={() => handleOpenAddProperty('material')}
+                  className="px-4 py-2.5 bg-white border border-[#1A1A1A] hover:bg-[#1A1A1A] hover:text-white text-[#1A1A1A] text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-2xs flex items-center justify-center gap-2 shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Material / Fabric</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                {properties
+                  .filter((p) => p.type === 'material')
+                  .map((mat) => {
+                    const count = products.filter(p => p.material && p.material.toLowerCase().includes(mat.name.toLowerCase())).length;
+                    return (
+                      <div key={mat.id} className="p-4 bg-white rounded-2xl border border-[#E7E2DA] shadow-2xs flex items-center justify-between gap-2 hover:border-[#C5A880] transition-colors">
+                        <div>
+                          <span className="font-bold text-xs text-[#1A1A1A] block">{mat.name}</span>
+                          <span className="text-[10px] text-gray-400 font-mono block mt-0.5">{count} items tagged</span>
+                        </div>
+                        <button
+                          onClick={() => handleDeleteProperty(mat.id, mat.name)}
+                          className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                          title="Delete Material"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+
+            {/* DYNAMIC OCCASIONS & COLLECTIONS MANAGEMENT */}
+            <div className="pt-8 space-y-4 border-t border-[#E7E2DA]">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                <div>
+                  <h3 className="font-serif text-2xl font-bold text-[#1A1A1A]">Dynamic Occasions & Collections</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Admin-managed occasion filters (Ceremonial, Holiday, Casual, Gala)</p>
+                </div>
+                <button
+                  onClick={() => handleOpenAddProperty('occasion')}
+                  className="px-4 py-2.5 bg-white border border-[#1A1A1A] hover:bg-[#1A1A1A] hover:text-white text-[#1A1A1A] text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-2xs flex items-center justify-center gap-2 shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Occasion Filter</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {properties
+                  .filter((p) => p.type === 'occasion')
+                  .map((occ) => {
+                    const count = products.filter(p => p.occasion && p.occasion.toLowerCase().includes(occ.name.toLowerCase())).length;
+                    return (
+                      <div key={occ.id} className="p-4 bg-white rounded-2xl border border-[#E7E2DA] shadow-2xs flex items-center justify-between gap-3 hover:border-[#C5A880] transition-colors">
+                        <div>
+                          <span className="font-bold text-xs text-[#1A1A1A] block">{occ.name}</span>
+                          <span className="text-[10px] text-gray-500 line-clamp-1 mt-0.5">{occ.description || 'Occasion filter tag'}</span>
+                          <span className="text-[10px] text-amber-700 font-bold block mt-1">{count} items tagged</span>
+                        </div>
+                        <button
+                          onClick={() => handleDeleteProperty(occ.id, occ.name)}
+                          className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                          title="Delete Occasion"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* PRODUCT PROPERTIES STUDIO TAB (METADATA-DRIVEN SCHEMA MANAGER) */}
+        {activeTab === 'properties' && (
+          <div className="space-y-8 animate-in fade-in duration-300">
+            {/* Header section */}
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white p-6 rounded-3xl border border-[#E7E2DA] shadow-2xs">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold uppercase tracking-wider">
+                    Metadata Architecture
+                  </span>
+                  <span className="text-xs text-gray-400 font-bold">• Admin Schema Control</span>
+                </div>
+                <h2 className="font-serif text-3xl font-bold text-[#1A1A1A] mt-1">Product Properties Studio</h2>
+                <p className="text-xs text-gray-500 mt-1 max-w-2xl">
+                  Decoupled product attributes system. Define custom schema properties (e.g., Size, Sleeve Type, Material, Heel Height) and map them to categories and automated storefront filters.
+                </p>
+              </div>
+
+              <button
+                onClick={handleOpenAddPropDef}
+                className="px-5 py-3 bg-[#1A1A1A] hover:bg-[#C5A880] text-white hover:text-black text-xs font-bold uppercase tracking-wider rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 shrink-0"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New Property Definition</span>
+              </button>
+            </div>
+
+            {/* Property Definitions Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {propertyDefinitions.map((pdef) => (
+                <div
+                  key={pdef.id}
+                  className="bg-white rounded-3xl p-6 border border-[#E7E2DA] hover:border-[#C5A880] transition-all shadow-xs flex flex-col justify-between space-y-4 group"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <span className="text-[10px] font-mono text-gray-400 block uppercase tracking-wider">
+                          slug: {pdef.slug}
+                        </span>
+                        <h3 className="font-bold text-lg text-[#1A1A1A] group-hover:text-[#C5A880] transition-colors">
+                          {pdef.name}
+                        </h3>
+                      </div>
+                      <span className="px-3 py-1 rounded-xl bg-[#FAF8F5] border border-[#E7E2DA] text-[11px] font-extrabold uppercase text-[#1A1A1A]">
+                        {pdef.type} {pdef.unit ? `(${pdef.unit})` : ''}
+                      </span>
+                    </div>
+
+                    {pdef.description && (
+                      <p className="text-xs text-gray-500 line-clamp-2">{pdef.description}</p>
+                    )}
+
+                    {/* Pre-defined Options preview */}
+                    {pdef.options && pdef.options.length > 0 && (
+                      <div className="space-y-1.5 pt-2 border-t border-gray-100">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase">
+                          Configured Options ({pdef.options.length}):
+                        </span>
+                        <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
+                          {pdef.options.map((opt) => (
+                            <span
+                              key={opt.id}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 text-[11px] font-bold text-gray-700"
+                            >
+                              {opt.hex && (
+                                <span
+                                  className="w-3 h-3 rounded-full border border-black/20"
+                                  style={{ backgroundColor: opt.hex }}
+                                />
+                              )}
+                              <span>{opt.name}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Categories Assignment Badges */}
+                    <div className="space-y-1 pt-2 border-t border-gray-100">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase">Assigned Categories:</span>
+                      <div className="flex flex-wrap gap-1">
+                        {pdef.categoryIds.includes('all') ? (
+                          <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 text-[10px] font-bold">
+                            All Categories
+                          </span>
+                        ) : (
+                          pdef.categoryIds.map((cId) => (
+                            <span
+                              key={cId}
+                              className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-800 text-[10px] font-bold uppercase"
+                            >
+                              {cId}
+                            </span>
+                          ))
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="pt-3 border-t border-[#E7E2DA] flex items-center justify-between text-xs">
-                    <span className="font-bold text-gray-700">{cat.itemCount || 0} Items</span>
-                    <div className="flex items-center gap-1">
+                  {/* Settings Flags & Action Controls */}
+                  <div className="pt-4 border-t border-[#E7E2DA] flex items-center justify-between">
+                    <div className="flex flex-wrap gap-1.5">
+                      {pdef.filterable && (
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
+                          Filterable
+                        </span>
+                      )}
+                      {pdef.variant && (
+                        <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold">
+                          Variant
+                        </span>
+                      )}
+                      {pdef.showOnProductCard && (
+                        <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold">
+                          On Card
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
-                        onClick={() => handleOpenEditCategory(cat)}
-                        className="p-1.5 text-gray-500 hover:text-[#C5A880] transition-colors"
-                        title="Edit Category"
+                        onClick={() => handleOpenEditPropDef(pdef)}
+                        className="p-2 text-gray-500 hover:text-black hover:bg-gray-100 rounded-xl transition-all"
+                        title="Edit Configuration"
                       >
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDeleteCategory(cat.id, cat.name)}
-                        className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
-                        title="Delete Category"
+                        onClick={() => handleDeletePropDef(pdef.id, pdef.name)}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                        title="Delete Property"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -1779,19 +2457,72 @@ export default function AdminClient({
                       />
                     </div>
 
-                    <div>
-                      <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                        Category *
-                      </label>
-                      <select
-                        value={pCategory}
-                        onChange={(e) => setPCategory(e.target.value)}
-                        className="w-full px-3.5 py-2.5 border rounded-xl bg-white font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
-                      >
-                        {categories.map((c) => (
-                          <option key={c.id} value={c.slug}>{c.name}</option>
-                        ))}
-                      </select>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                          Main Category *
+                        </label>
+                        <select
+                          value={pCategory}
+                          onChange={(e) => {
+                            setPCategory(e.target.value);
+                            setPSubcategory('');
+                          }}
+                          className="w-full px-3.5 py-2.5 border rounded-xl bg-white font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
+                        >
+                          {categories.map((c) => (
+                            <option key={c.id} value={c.slug}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                          Sub-Category / Style Filter
+                        </label>
+                        {(() => {
+                          const activeCatObj = categories.find(
+                            (c) => c.slug === pCategory || c.name.toLowerCase() === pCategory.toLowerCase()
+                          );
+                          const managedSubcats = subcategories
+                            .filter(
+                              (s) =>
+                                s.categorySlug.toLowerCase() === pCategory.toLowerCase() ||
+                                (activeCatObj && s.categorySlug.toLowerCase() === activeCatObj.slug.toLowerCase())
+                            )
+                            .map((s) => s.name);
+
+                          const subcats = Array.from(
+                            new Set([...(activeCatObj?.subcategories || []), ...managedSubcats])
+                          );
+
+                          return (
+                            <div className="space-y-1.5">
+                              {subcats.length > 0 && (
+                                <select
+                                  value={pSubcategory}
+                                  onChange={(e) => setPSubcategory(e.target.value)}
+                                  className="w-full px-3.5 py-2 border rounded-xl bg-white font-bold text-xs text-[#1A1A1A] focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
+                                >
+                                  <option value="">-- Choose Sub-Category --</option>
+                                  {subcats.map((sc) => (
+                                    <option key={sc} value={sc}>
+                                      {sc}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+                              <input
+                                type="text"
+                                value={pSubcategory}
+                                onChange={(e) => setPSubcategory(e.target.value)}
+                                placeholder={subcats.length > 0 ? "Or custom style tag" : "e.g. Traditional Habesha Kemis"}
+                                className="w-full px-3.5 py-2 border rounded-xl font-medium text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
+                              />
+                            </div>
+                          );
+                        })()}
+                      </div>
                     </div>
                   </div>
 
@@ -2032,6 +2763,63 @@ export default function AdminClient({
                     />
                   </div>
 
+                  {/* DYNAMIC MATERIAL & OCCASION PROPERTY SELECTORS */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA]">
+                    <div>
+                      <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                        Material / Fabric Property
+                      </label>
+                      <select
+                        value={pMaterial}
+                        onChange={(e) => setPMaterial(e.target.value)}
+                        className="w-full px-3.5 py-2 border rounded-xl bg-white font-bold text-xs text-[#1A1A1A] focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
+                      >
+                        <option value="">-- Select Material Property --</option>
+                        {properties
+                          .filter((p) => p.type === 'material')
+                          .map((m) => (
+                            <option key={m.id} value={m.name}>
+                              {m.name}
+                            </option>
+                          ))}
+                      </select>
+                      <input
+                        type="text"
+                        value={pMaterial}
+                        onChange={(e) => setPMaterial(e.target.value)}
+                        placeholder="Or custom fabric (e.g. 100% Linen)"
+                        className="w-full px-3 py-1.5 border rounded-xl font-medium text-xs bg-white mt-1.5"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                        Occasion / Collection Property
+                      </label>
+                      <select
+                        value={pOccasion}
+                        onChange={(e) => setPOccasion(e.target.value)}
+                        className="w-full px-3.5 py-2 border rounded-xl bg-white font-bold text-xs text-[#1A1A1A] focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
+                      >
+                        <option value="">-- Select Occasion Property --</option>
+                        {properties
+                          .filter((p) => p.type === 'occasion')
+                          .map((o) => (
+                            <option key={o.id} value={o.name}>
+                              {o.name}
+                            </option>
+                          ))}
+                      </select>
+                      <input
+                        type="text"
+                        value={pOccasion}
+                        onChange={(e) => setPOccasion(e.target.value)}
+                        placeholder="Or custom occasion (e.g. Ceremonial & Wedding)"
+                        className="w-full px-3 py-1.5 border rounded-xl font-medium text-xs bg-white mt-1.5"
+                      />
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
@@ -2082,6 +2870,151 @@ export default function AdminClient({
                     </label>
                   </div>
                 </div>
+
+                {/* 6. DYNAMIC METADATA ATTRIBUTES (SCHEMA MANAGER DRIVEN) */}
+                {propertyDefinitions.filter(
+                  (pdef) =>
+                    pdef.categoryIds.includes('all') ||
+                    pdef.categoryIds.includes(pCategory)
+                ).length > 0 && (
+                  <div className="p-4 bg-amber-50/60 rounded-2xl border border-amber-200/80 space-y-4">
+                    <div className="flex items-center justify-between border-b border-amber-200 pb-2">
+                      <label className="font-bold text-xs text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <SlidersHorizontal className="w-4 h-4 text-[#C5A880]" /> 6. Dynamic Category Attributes
+                      </label>
+                      <span className="text-[10px] text-amber-700 font-semibold bg-amber-100 px-2 py-0.5 rounded-md">
+                        Metadata Configured
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {propertyDefinitions
+                        .filter(
+                          (pdef) =>
+                            pdef.categoryIds.includes('all') ||
+                            pdef.categoryIds.includes(pCategory)
+                        )
+                        .map((pdef) => {
+                          const val = pAttributes[pdef.slug] !== undefined ? pAttributes[pdef.slug] : '';
+                          return (
+                            <div key={pdef.id} className="space-y-1 bg-white p-3 rounded-xl border border-[#E7E2DA]">
+                              <div className="flex items-center justify-between">
+                                <label className="font-bold text-xs text-[#1A1A1A]">
+                                  {pdef.name} {pdef.required && <span className="text-red-500">*</span>}
+                                </label>
+                                {pdef.unit && <span className="text-[10px] text-gray-400 font-mono">Unit: {pdef.unit}</span>}
+                              </div>
+
+                              {/* SELECT / SINGLE CHOICE */}
+                              {pdef.type === 'select' && (
+                                <select
+                                  value={val}
+                                  onChange={(e) => setPAttributes({ ...pAttributes, [pdef.slug]: e.target.value })}
+                                  className="w-full px-3 py-2 border rounded-xl bg-[#FAF8F5] text-xs font-bold text-[#1A1A1A]"
+                                >
+                                  <option value="">-- Choose {pdef.name} --</option>
+                                  {(pdef.options || []).map((opt) => (
+                                    <option key={opt.id} value={opt.value}>
+                                      {opt.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+
+                              {/* MULTI_SELECT CHOICE */}
+                              {pdef.type === 'multi_select' && (
+                                <div className="flex flex-wrap gap-1.5 pt-1">
+                                  {(pdef.options || []).map((opt) => {
+                                    const selectedList: string[] = Array.isArray(val) ? val : [];
+                                    const isSel = selectedList.includes(opt.value);
+                                    return (
+                                      <button
+                                        type="button"
+                                        key={opt.id}
+                                        onClick={() => {
+                                          const next = isSel
+                                            ? selectedList.filter((s) => s !== opt.value)
+                                            : [...selectedList, opt.value];
+                                          setPAttributes({ ...pAttributes, [pdef.slug]: next });
+                                        }}
+                                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all ${
+                                          isSel
+                                            ? 'bg-[#1A1A1A] text-white border-[#1A1A1A]'
+                                            : 'bg-white text-gray-700 border-[#E7E2DA] hover:border-black'
+                                        }`}
+                                      >
+                                        {opt.name}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              {/* COLOR TYPE */}
+                              {pdef.type === 'color' && (
+                                <div className="flex flex-wrap gap-1.5 pt-1">
+                                  {(pdef.options || []).map((opt) => {
+                                    const isSel = val === opt.value;
+                                    return (
+                                      <button
+                                        type="button"
+                                        key={opt.id}
+                                        onClick={() => setPAttributes({ ...pAttributes, [pdef.slug]: opt.value })}
+                                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+                                          isSel ? 'bg-[#1A1A1A] text-white border-black ring-2 ring-[#C5A880]' : 'bg-white text-gray-800 border-[#E7E2DA]'
+                                        }`}
+                                      >
+                                        <span className="w-3.5 h-3.5 rounded-full border border-black/20" style={{ backgroundColor: opt.hex || '#1A1A1A' }} />
+                                        <span>{opt.name}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              {/* NUMBER TYPE */}
+                              {pdef.type === 'number' && (
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="number"
+                                    value={val}
+                                    onChange={(e) => setPAttributes({ ...pAttributes, [pdef.slug]: Number(e.target.value) })}
+                                    placeholder="Enter numeric value"
+                                    className="w-full px-3 py-2 border rounded-xl text-xs font-bold"
+                                  />
+                                  {pdef.unit && <span className="text-xs font-bold text-gray-500">{pdef.unit}</span>}
+                                </div>
+                              )}
+
+                              {/* BOOLEAN TOGGLE */}
+                              {pdef.type === 'boolean' && (
+                                <label className="flex items-center gap-2 cursor-pointer pt-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(val)}
+                                    onChange={(e) => setPAttributes({ ...pAttributes, [pdef.slug]: e.target.checked })}
+                                    className="rounded text-[#1A1A1A]"
+                                  />
+                                  <span className="text-xs font-bold text-gray-700">Enable / Yes</span>
+                                </label>
+                              )}
+
+                              {/* TEXT INPUT */}
+                              {pdef.type === 'text' && (
+                                <input
+                                  type="text"
+                                  value={val}
+                                  onChange={(e) => setPAttributes({ ...pAttributes, [pdef.slug]: e.target.value })}
+                                  placeholder={`Enter ${pdef.name}...`}
+                                  className="w-full px-3 py-2 border rounded-xl text-xs"
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
 
                 {/* MODAL ACTIONS BAR */}
                 <div className="sticky bottom-0 bg-white pt-4 pb-2 flex justify-end gap-3 border-t border-[#E7E2DA] z-10">
@@ -2185,6 +3118,20 @@ export default function AdminClient({
                   />
                 </div>
 
+                <div>
+                  <label className="font-bold text-gray-800 block mb-1">Sub-Categories / Tags (Comma separated)</label>
+                  <input
+                    type="text"
+                    value={catSubcategories}
+                    onChange={(e) => setCatSubcategories(e.target.value)}
+                    placeholder="e.g. Habesha Kemis, Linen Gown, Bridal, Casual"
+                    className="w-full px-3 py-2 border rounded-xl font-medium"
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Used for dynamic storefront filtering and category product grouping.
+                  </p>
+                </div>
+
                 <div className="pt-3 flex justify-end gap-3 border-t">
                   <button
                     type="button"
@@ -2204,6 +3151,511 @@ export default function AdminClient({
             </div>
           </div>
         )}
+
+      {/* SUB-CATEGORY / STYLE MODAL (CREATE & EDIT) */}
+      {showSubModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-[#E7E2DA] max-w-lg w-full p-6 space-y-6 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-[#E7E2DA] pb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-2xl bg-[#C5A880]/20 text-[#1A1A1A] flex items-center justify-center">
+                  <Tag className="w-5 h-5 text-[#C5A880]" />
+                </div>
+                <div>
+                  <h3 className="font-serif text-xl font-bold text-[#1A1A1A]">
+                    {editingSubId ? 'Edit Sub-Category Style' : 'Add New Sub-Category / Style'}
+                  </h3>
+                  <p className="text-xs text-gray-500">Configure catalog style filter tags and taxonomy</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSubModal(false)}
+                className="p-2 text-gray-400 hover:text-black rounded-xl hover:bg-gray-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveSubcategory} className="space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                  Sub-Category / Style Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={subName}
+                  onChange={(e) => setSubName(e.target.value)}
+                  placeholder="e.g. Traditional Habesha Kemis, Bridal & Wedding, Leather Sandals"
+                  className="w-full px-3.5 py-2.5 border rounded-xl font-bold text-[#1A1A1A] focus:ring-2 focus:ring-[#C5A880]"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                  Parent Main Category *
+                </label>
+                <select
+                  value={subCategorySlug}
+                  onChange={(e) => setSubCategorySlug(e.target.value)}
+                  className="w-full px-3.5 py-2.5 border rounded-xl font-bold bg-[#FAF8F5] focus:ring-2 focus:ring-[#C5A880]"
+                >
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.slug}>
+                      {c.name} ({c.slug})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                  URL Tag Slug (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={subSlug}
+                  onChange={(e) => setSubSlug(e.target.value)}
+                  placeholder="e.g. traditional-habesha-kemis"
+                  className="w-full px-3 py-2 border rounded-xl font-mono text-gray-600"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                  Description / Style Tagline
+                </label>
+                <textarea
+                  rows={2}
+                  value={subDesc}
+                  onChange={(e) => setSubDesc(e.target.value)}
+                  placeholder="Authentic handwoven ceremonial dresses with fine Ethiopian borders..."
+                  className="w-full px-3 py-2 border rounded-xl"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                  Tag Theme Color Accent
+                </label>
+                <div className="flex items-center gap-3 pt-1">
+                  <input
+                    type="color"
+                    value={subBadgeColor}
+                    onChange={(e) => setSubBadgeColor(e.target.value)}
+                    className="w-10 h-10 rounded-xl cursor-pointer border border-[#E7E2DA]"
+                  />
+                  <div className="flex gap-2">
+                    {['#C5A880', '#1A1A1A', '#D4AF37', '#1B4D3E', '#800020', '#002366'].map((color) => (
+                      <button
+                        type="button"
+                        key={color}
+                        onClick={() => setSubBadgeColor(color)}
+                        className={`w-7 h-7 rounded-full border border-black/20 transition-transform ${
+                          subBadgeColor === color ? 'scale-110 ring-2 ring-offset-2 ring-[#C5A880]' : ''
+                        }`}
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3 border-t border-[#E7E2DA]">
+                <button
+                  type="button"
+                  onClick={() => setShowSubModal(false)}
+                  className="px-5 py-2.5 border rounded-xl font-bold hover:bg-gray-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={subSaving}
+                  className="px-6 py-2.5 bg-[#1A1A1A] hover:bg-[#C5A880] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-colors shadow-md flex items-center gap-2"
+                >
+                  {subSaving ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin text-[#C5A880]" />
+                      <span>Saving Sub-Category...</span>
+                    </>
+                  ) : (
+                    <span>Save Sub-Category / Style</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DYNAMIC PROPERTY MODAL (MATERIAL, OCCASION, TAG) */}
+      {showPropModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-[#E7E2DA] max-w-md w-full p-6 space-y-6 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-[#E7E2DA] pb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-2xl bg-[#C5A880]/20 text-[#1A1A1A] flex items-center justify-center">
+                  <SlidersHorizontal className="w-5 h-5 text-[#C5A880]" />
+                </div>
+                <div>
+                  <h3 className="font-serif text-lg font-bold text-[#1A1A1A]">
+                    Add Dynamic {propType === 'material' ? 'Material / Fabric' : propType === 'occasion' ? 'Occasion / Collection' : 'Custom Tag'}
+                  </h3>
+                  <p className="text-xs text-gray-500">Configure catalog filter property</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPropModal(false)}
+                className="p-2 text-gray-400 hover:text-black rounded-xl hover:bg-gray-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProperty} className="space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                  Property Type *
+                </label>
+                <select
+                  value={propType}
+                  onChange={(e: any) => setPropType(e.target.value)}
+                  className="w-full px-3.5 py-2.5 border rounded-xl font-bold bg-[#FAF8F5] focus:ring-2 focus:ring-[#C5A880]"
+                >
+                  <option value="material">Material / Fabric (e.g. Linen, Habesha Shemma, Silk)</option>
+                  <option value="occasion">Occasion / Collection (e.g. Ceremonial & Wedding, Holiday)</option>
+                  <option value="tag">Custom Property Tag</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                  Property Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={propName}
+                  onChange={(e) => setPropName(e.target.value)}
+                  placeholder={propType === 'material' ? 'e.g. Habesha Shemma, Bamboo Linen, Organza' : 'e.g. Ceremonial & Wedding'}
+                  className="w-full px-3.5 py-2.5 border rounded-xl font-bold text-[#1A1A1A] focus:ring-2 focus:ring-[#C5A880]"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                  Description / Tagline (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={propDesc}
+                  onChange={(e) => setPropDesc(e.target.value)}
+                  placeholder="Detailed description of material or occasion..."
+                  className="w-full px-3 py-2 border rounded-xl"
+                />
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3 border-t border-[#E7E2DA]">
+                <button
+                  type="button"
+                  onClick={() => setShowPropModal(false)}
+                  className="px-5 py-2.5 border rounded-xl font-bold hover:bg-gray-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-[#1A1A1A] hover:bg-[#C5A880] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-colors shadow-md"
+                >
+                  Save Property
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* PRODUCT PROPERTY DEFINITION MODAL (ADMIN SCHEMA MANAGER) */}
+      {showPropDefModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-[#E7E2DA] max-w-2xl w-full p-6 sm:p-8 space-y-6 shadow-2xl animate-in zoom-in-95 duration-200 my-auto max-h-[90vh] overflow-y-auto no-scrollbar">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-[#E7E2DA] pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-900 flex items-center justify-center font-bold">
+                  <SlidersHorizontal className="w-5 h-5 text-[#C5A880]" />
+                </div>
+                <div>
+                  <h3 className="font-serif text-xl font-bold text-[#1A1A1A]">
+                    {editingPropDefId ? 'Edit Schema Property Definition' : 'Create New Schema Property Definition'}
+                  </h3>
+                  <p className="text-xs text-gray-500">Configure custom product property metadata and storefront filters</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPropDefModal(false)}
+                className="p-2 text-gray-400 hover:text-black rounded-xl hover:bg-gray-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePropDef} className="space-y-6 text-xs">
+              
+              {/* Basic Fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                    Property Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={defName}
+                    onChange={(e) => setDefName(e.target.value)}
+                    placeholder="e.g. Sleeve Type, Heel Height, Material"
+                    className="w-full px-3.5 py-2.5 border rounded-xl font-bold text-[#1A1A1A] focus:ring-2 focus:ring-[#C5A880]"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                    Property Slug (Unique ID)
+                  </label>
+                  <input
+                    type="text"
+                    value={defSlug}
+                    onChange={(e) => setDefSlug(e.target.value)}
+                    placeholder="e.g. sleeve-type, heel-height"
+                    className="w-full px-3.5 py-2.5 border rounded-xl font-mono text-gray-600 focus:ring-2 focus:ring-[#C5A880]"
+                  />
+                </div>
+              </div>
+
+              {/* Type and Unit */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                    Data Input Type *
+                  </label>
+                  <select
+                    value={defType}
+                    onChange={(e: any) => setDefType(e.target.value)}
+                    className="w-full px-3.5 py-2.5 border rounded-xl font-bold bg-[#FAF8F5] focus:ring-2 focus:ring-[#C5A880]"
+                  >
+                    <option value="select">Select (Single Choice Dropdown)</option>
+                    <option value="multi_select">Multi-Select (Multiple Choice Pills)</option>
+                    <option value="color">Color Palette (Swatches with Hex Codes)</option>
+                    <option value="number">Number (Numeric Range/Filter)</option>
+                    <option value="boolean">Boolean (Yes/No Toggle)</option>
+                    <option value="text">Text (Free text note)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                    Measurement Unit (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={defUnit}
+                    onChange={(e) => setDefUnit(e.target.value)}
+                    placeholder="e.g. cm, mm, g, ETB"
+                    className="w-full px-3.5 py-2.5 border rounded-xl font-medium"
+                  />
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                  Property Description / Help Text
+                </label>
+                <textarea
+                  rows={2}
+                  value={defDesc}
+                  onChange={(e) => setDefDesc(e.target.value)}
+                  placeholder="Explain what this property represents..."
+                  className="w-full px-3.5 py-2 border rounded-xl"
+                />
+              </div>
+
+              {/* Options Configurator for Select / Multi-Select / Color */}
+              {['select', 'multi_select', 'color'].includes(defType) && (
+                <div className="p-4 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-xs text-gray-900 uppercase tracking-wider">
+                      Pre-defined Options ({defOptions.length})
+                    </label>
+                    <span className="text-[10px] text-gray-400">Add options that admins can select</span>
+                  </div>
+
+                  {/* Add option row */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {defType === 'color' && (
+                      <input
+                        type="color"
+                        value={newOptHex}
+                        onChange={(e) => setNewOptHex(e.target.value)}
+                        className="w-9 h-9 rounded-xl cursor-pointer border border-[#E7E2DA] shrink-0"
+                        title="Pick option color"
+                      />
+                    )}
+                    <input
+                      type="text"
+                      value={newOptName}
+                      onChange={(e) => setNewOptName(e.target.value)}
+                      placeholder={defType === 'color' ? 'Color Name (e.g. Habesha Gold)' : 'Option Name (e.g. Long Sleeve)'}
+                      className="flex-1 px-3 py-2 border rounded-xl font-bold bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddPropDefOption}
+                      className="px-4 py-2 bg-[#1A1A1A] hover:bg-[#C5A880] text-white hover:text-black font-bold rounded-xl transition-all shrink-0"
+                    >
+                      + Add Option
+                    </button>
+                  </div>
+
+                  {/* Existing options list */}
+                  <div className="flex flex-wrap gap-2 pt-2 max-h-36 overflow-y-auto">
+                    {defOptions.map((opt) => (
+                      <div
+                        key={opt.id}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-[#E7E2DA] shadow-2xs font-bold text-xs"
+                      >
+                        {opt.hex && (
+                          <span className="w-3.5 h-3.5 rounded-full border border-black/20" style={{ backgroundColor: opt.hex }} />
+                        )}
+                        <span>{opt.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePropDefOption(opt.id)}
+                          className="text-gray-400 hover:text-red-600 ml-1"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Category Assignments */}
+              <div className="space-y-2 p-4 bg-gray-50 rounded-2xl border border-gray-200">
+                <label className="font-bold text-xs text-gray-900 uppercase tracking-wider block">
+                  Category Assignment
+                </label>
+                <p className="text-[11px] text-gray-500">
+                  Select which categories show this property in the catalog filter and product creation form.
+                </p>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleDefCategory('all')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                      defCategoryIds.includes('all')
+                        ? 'bg-amber-800 text-white shadow-xs'
+                        : 'bg-white text-gray-700 border border-gray-300'
+                    }`}
+                  >
+                    All Categories
+                  </button>
+
+                  {categories.map((cat) => {
+                    const isAssigned = defCategoryIds.includes(cat.slug) && !defCategoryIds.includes('all');
+                    return (
+                      <button
+                        type="button"
+                        key={cat.id}
+                        onClick={() => handleToggleDefCategory(cat.slug)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                          isAssigned
+                            ? 'bg-[#1A1A1A] text-white shadow-xs'
+                            : 'bg-white text-gray-700 border border-gray-300 hover:border-black'
+                        }`}
+                      >
+                        {cat.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Settings Flags */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA]">
+                <label className="flex items-center gap-2 cursor-pointer font-bold">
+                  <input
+                    type="checkbox"
+                    checked={defFilterable}
+                    onChange={(e) => setDefFilterable(e.target.checked)}
+                    className="rounded text-[#1A1A1A]"
+                  />
+                  <span>Filterable</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer font-bold">
+                  <input
+                    type="checkbox"
+                    checked={defVariant}
+                    onChange={(e) => setDefVariant(e.target.checked)}
+                    className="rounded text-[#1A1A1A]"
+                  />
+                  <span>Variant</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer font-bold">
+                  <input
+                    type="checkbox"
+                    checked={defShowOnProductPage}
+                    onChange={(e) => setDefShowOnProductPage(e.target.checked)}
+                    className="rounded text-[#1A1A1A]"
+                  />
+                  <span>Product Page</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer font-bold">
+                  <input
+                    type="checkbox"
+                    checked={defShowOnProductCard}
+                    onChange={(e) => setDefShowOnProductCard(e.target.checked)}
+                    className="rounded text-[#1A1A1A]"
+                  />
+                  <span>Product Card</span>
+                </label>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-[#E7E2DA]">
+                <button
+                  type="button"
+                  onClick={() => setShowPropDefModal(false)}
+                  className="px-5 py-2.5 border border-[#E7E2DA] hover:bg-gray-100 text-gray-700 font-bold rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={defSaving}
+                  className="px-6 py-2.5 bg-[#1A1A1A] hover:bg-[#C5A880] text-white hover:text-black font-bold uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center gap-2"
+                >
+                  {defSaving ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin text-[#C5A880]" />
+                      <span>Saving Schema...</span>
+                    </>
+                  ) : (
+                    <span>Save Property Definition</span>
+                  )}
+                </button>
+              </div>
+            </form>
+
+          </div>
+        </div>
+      )}
 
         {/* RICH INSPECT PRODUCT DETAIL MODAL (Matching exact storefront detail layout) */}
         {viewProduct && (
@@ -2400,7 +3852,7 @@ export default function AdminClient({
 
                 <div className="space-y-2 pt-2">
                   <h4 className="font-bold text-gray-900 uppercase">Purchased Items:</h4>
-                  {selectedOrder.items?.map((item, idx) => (
+                  {selectedOrder.items?.map((item: any, idx: number) => (
                     <div key={idx} className="flex justify-between items-center p-2.5 border rounded-xl">
                       <div className="flex items-center gap-3">
                         <img src={item.product.image} alt={item.product.name} className="w-10 h-12 object-cover rounded-lg" />

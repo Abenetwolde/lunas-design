@@ -32,7 +32,7 @@ export const InstagramFeed: React.FC = () => {
               {t('editorialCommunity')}
             </span>
             <h3 className="font-serif text-2xl sm:text-3xl text-[#1A1A1A] font-light mt-0.5">
-              {t('followInstagram')}
+              {siteSettings.instagramTitle || t('followInstagram')}
             </h3>
           </div>
           <a
