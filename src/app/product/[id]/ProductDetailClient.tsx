@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Product, ColorOption, Review } from '../../../types';
 import { useStore } from '../../../context/StoreContext';
@@ -24,7 +24,7 @@ interface Props {
 
 export default function ProductDetailClient({ product: initialProduct, relatedProducts }: Props) {
   const { addToCart, toggleWishlist, isInWishlist, telegramUsername } = useStore();
-  const [product, setProduct] = useState<Product>(initialProduct);
+  const [product] = useState<Product>(initialProduct);
 
   const [selectedColor, setSelectedColor] = useState<ColorOption>(
     product.colors && product.colors.length > 0 ? product.colors[0] : { name: 'Standard', hex: '#1A1A1A' }
@@ -50,6 +50,14 @@ export default function ProductDetailClient({ product: initialProduct, relatedPr
   const isWishlisted = isInWishlist(product.id);
   const totalAmount = product.price * quantity;
   const isInStock = product.inStock !== false;
+
+  // REAL review data only — average & count are derived from fetched reviews,
+  // never from seeded/mock product.rating or product.reviewsCount.
+  const liveReviewsCount = reviewsList.length;
+  const liveAvgRating =
+    liveReviewsCount > 0
+      ? reviewsList.reduce((acc, r) => acc + Number(r.rating || 0), 0) / liveReviewsCount
+      : null;
 
   const galleryList = Array.from(
     new Set([product.image, product.secondaryImage, ...(product.images || [])].filter(Boolean) as string[])
@@ -104,24 +112,33 @@ ${customerName ? `Customer Name: ${customerName}\n` : ''}${
     window.open(tgUrl, '_blank');
   };
 
+  // Hard lock against double-submission (double-click / Enter key / remount races).
+  // A ref is used instead of state because it updates synchronously across event loops.
+  const submittingRef = useRef<boolean>(false);
+
   const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current) return; // a submission is already in flight — ignore this one
     if (!revComment.trim()) return;
+
+    submittingRef.current = true;
     setSubmittingReview(true);
-    
-    const res = await addReview(product.id, revAuthor, revRating, revComment);
-    if (res.success && res.review) {
-      const updatedRevs = [res.review, ...reviewsList];
-      setReviewsList(updatedRevs);
-      const avg = updatedRevs.reduce((acc, r) => acc + r.rating, 0) / updatedRevs.length;
-      setProduct({ ...product, rating: avg, reviewsCount: updatedRevs.length });
-      setRevAuthor('');
-      setRevComment('');
-      setRevRating(5);
-      setReviewSuccess(true);
-      setTimeout(() => setReviewSuccess(false), 4000);
+
+    try {
+      const res = await addReview(product.id, revAuthor, revRating, revComment.trim());
+      if (res.success && res.review) {
+        // Dedupe by id before prepending so a review can never render twice
+        setReviewsList((prev) => [res.review!, ...prev.filter((r) => r.id !== res.review!.id)]);
+        setRevAuthor('');
+        setRevComment('');
+        setRevRating(5);
+        setReviewSuccess(true);
+        setTimeout(() => setReviewSuccess(false), 4000);
+      }
+    } finally {
+      submittingRef.current = false;
+      setSubmittingReview(false);
     }
-    setSubmittingReview(false);
   };
 
   const hasOriginalPrice = Boolean(product.originalPrice && product.originalPrice > product.price);
@@ -254,11 +271,16 @@ ${customerName ? `Customer Name: ${customerName}\n` : ''}${
                   )}
                 </div>
 
-                <div className="flex items-center gap-1 text-xs">
-                  <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
-                  <span className="font-bold text-gray-900">{product.rating.toFixed(1)}</span>
-                  <span className="text-gray-400">({reviewsList.length || product.reviewsCount} reviews)</span>
-                </div>
+                {/* Live rating from real customer reviews — hidden entirely when none exist */}
+                {liveAvgRating !== null && (
+                  <div className="flex items-center gap-1 text-xs">
+                    <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
+                    <span className="font-bold text-gray-900">{liveAvgRating.toFixed(1)}</span>
+                    <span className="text-gray-400">
+                      ({liveReviewsCount} {liveReviewsCount === 1 ? 'review' : 'reviews'})
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Description */}

@@ -249,7 +249,7 @@ export async function getProducts(): Promise<Product[]> {
       category: item.category,
       price: Number(item.price),
       originalPrice: item.original_price ? Number(item.original_price) : undefined,
-      rating: Number(item.rating || 4.9),
+      rating: Number(item?.rating ),
       reviewsCount: Number(item.reviews_count || 24),
       isNew: Boolean(item.is_new),
       isSale: Boolean(item.is_sale),
@@ -473,15 +473,20 @@ export async function getProductReviews(productId: string): Promise<Review[]> {
 
     if (!error && data && data.length > 0) {
       const fetched: Review[] = data.map((r: any) => ({
-        id: r.id,
+        id: String(r.id),
         productId: r.product_id,
         authorName: r.author_name,
         rating: Number(r.rating),
         comment: r.comment,
         createdAt: r.created_at,
       }));
-      inMemoryReviews[productId] = fetched;
-      return fetched;
+
+      // Defensive dedupe by id so a review can never appear twice
+      const seenIds = new Set<string>();
+      const unique = fetched.filter((r) => (seenIds.has(r.id) ? false : (seenIds.add(r.id), true)));
+
+      inMemoryReviews[productId] = unique;
+      return unique;
     }
   } catch (err) {}
 
@@ -501,35 +506,110 @@ export async function addReview(
   rating: number,
   comment: string
 ): Promise<{ success: boolean; review?: Review }> {
-  const newReview: Review = {
+  const finalAuthor = (authorName || '').trim() || 'Anonymous Customer';
+  const finalComment = (comment || '').trim();
+
+  // --- IDEMPOTENCY GUARD ---
+  // If this exact review (same product + author + comment) was already saved
+  // moments ago, treat it as an accidental double-submit and reuse that row
+  // instead of inserting a duplicate into the database.
+  try {
+    const { data: existing } = await supabase
+      .from('reviews')
+      .select('*')
+      .eq('product_id', productId)
+      .eq('author_name', finalAuthor)
+      .eq('comment', finalComment)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    const duplicateWindowMs = 60 * 1000; // 1 minute
+    const dup = (existing || []).find((r: any) => {
+      const createdMs = r.created_at ? new Date(r.created_at).getTime() : 0;
+      return createdMs > 0 && Date.now() - createdMs < duplicateWindowMs;
+    });
+
+    if (dup) {
+      const existingReview: Review = {
+        id: String(dup.id),
+        productId,
+        authorName: dup.author_name,
+        rating: Number(dup.rating),
+        comment: dup.comment,
+        createdAt: dup.created_at,
+      };
+      if (!inMemoryReviews[productId]) inMemoryReviews[productId] = [];
+      inMemoryReviews[productId] = [
+        existingReview,
+        ...inMemoryReviews[productId].filter((r) => r.id !== existingReview.id),
+      ];
+      return { success: true, review: existingReview };
+    }
+  } catch (err) {}
+
+  // --- INSERT & RETURN THE CANONICAL DATABASE ROW ---
+  try {
+    const { data, error } = await supabase
+      .from('reviews')
+      .insert([
+        {
+          product_id: productId,
+          author_name: finalAuthor,
+          rating,
+          comment: finalComment,
+        },
+      ])
+      .select('*')
+      .single();
+
+    if (!error && data) {
+      const dbReview: Review = {
+        id: String(data.id),
+        productId,
+        authorName: data.author_name,
+        rating: Number(data.rating),
+        comment: data.comment,
+        createdAt: data.created_at,
+      };
+
+      if (!inMemoryReviews[productId]) inMemoryReviews[productId] = [];
+      inMemoryReviews[productId] = [
+        dbReview,
+        ...inMemoryReviews[productId].filter(
+          (r) => r.id !== dbReview.id && !(r.authorName === dbReview.authorName && r.comment === dbReview.comment)
+        ),
+      ];
+
+      // Recalculate and persist the real average rating to the products table
+      const allRevs = inMemoryReviews[productId];
+      const avgRating = allRevs.reduce((acc, r) => acc + Number(r.rating || 0), 0) / allRevs.length;
+      await updateProduct(productId, { rating: avgRating, reviewsCount: allRevs.length });
+
+      return { success: true, review: dbReview };
+    }
+  } catch (err) {}
+
+  // --- FALLBACK (Supabase unreachable): keep a local-only copy ---
+  const localReview: Review = {
     id: `rev-${Date.now()}`,
     productId,
-    authorName: authorName || 'Anonymous Customer',
+    authorName: finalAuthor,
     rating,
-    comment,
+    comment: finalComment,
     createdAt: new Date().toISOString(),
   };
 
-  try {
-    await supabase.from('reviews').insert([
-      {
-        product_id: productId,
-        author_name: newReview.authorName,
-        rating: newReview.rating,
-        comment: newReview.comment,
-      },
-    ]);
-  } catch (err) {}
-
   if (!inMemoryReviews[productId]) inMemoryReviews[productId] = [];
-  inMemoryReviews[productId].unshift(newReview);
+  inMemoryReviews[productId] = [
+    localReview,
+    ...inMemoryReviews[productId].filter((r) => r.id !== localReview.id),
+  ];
 
-  // Recalculate and update product rating in products table
   const allRevs = inMemoryReviews[productId];
-  const avgRating = allRevs.reduce((acc, r) => acc + r.rating, 0) / allRevs.length;
+  const avgRating = allRevs.reduce((acc, r) => acc + Number(r.rating || 0), 0) / allRevs.length;
   await updateProduct(productId, { rating: avgRating, reviewsCount: allRevs.length });
 
-  return { success: true, review: newReview };
+  return { success: true, review: localReview };
 }
 
 /**
