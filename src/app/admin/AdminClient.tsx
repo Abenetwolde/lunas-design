@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Product, Category, SubCategory, ProductProperty, PropertyDefinition, PropertyOption, PropertyType, OrderInquiry, SiteSettings, ColorOption } from '../../types';
+import { Product, Category, SubCategory, PropertyDefinition, PropertyOption, PropertyType, OrderInquiry, SiteSettings, ColorOption } from '../../types';
 import {
   createProduct,
   updateProduct,
@@ -15,9 +15,6 @@ import {
   createSubcategory,
   updateSubcategory,
   deleteSubcategory,
-  getProductProperties,
-  createProductProperty,
-  deleteProductProperty,
   getPropertyDefinitions,
   createPropertyDefinition,
   updatePropertyDefinition,
@@ -102,15 +99,7 @@ export default function AdminClient({
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [subcategories, setSubcategories] = useState<SubCategory[]>(initialSubcategories);
-  const [properties, setProperties] = useState<ProductProperty[]>([]);
   const [orders, setOrders] = useState<OrderInquiry[]>(initialOrders);
-
-  // Dynamic Property modal states
-  const [showPropModal, setShowPropModal] = useState(false);
-  const [propType, setPropType] = useState<'material' | 'occasion' | 'tag'>('material');
-  const [propName, setPropName] = useState('');
-  const [propDesc, setPropDesc] = useState('');
-  const [propBadgeColor, setPropBadgeColor] = useState('#C5A880');
 
   // Sidebar & Navigation states
   const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'categories' | 'subcategories' | 'properties' | 'orders' | 'site'>(initialTab as any);
@@ -204,6 +193,8 @@ export default function AdminClient({
   const [pName, setPName] = useState('');
   const [pCategory, setPCategory] = useState('dresses');
   const [pSubcategory, setPSubcategory] = useState('');
+  const [pChildCollection, setPChildCollection] = useState(''); // Brand / child level under a Sub-Category
+  const [subParent, setSubParent] = useState('');               // Sub-Category manager: optional parent slug
   const [pPrice, setPPrice] = useState('3500');
   const [pOrigPrice, setPOrigPrice] = useState('4200');
   const [pDesc, setPDesc] = useState('');
@@ -280,7 +271,6 @@ export default function AdminClient({
 
   // Pure Supabase & Admin Session check
   useEffect(() => {
-    getProductProperties().then((data) => setProperties(data));
     getPropertyDefinitions().then((data) => setPropertyDefinitions(data));
     if (!initialSubcategories || initialSubcategories.length === 0) {
       getSubcategories().then((data) => setSubcategories(data));
@@ -459,12 +449,14 @@ export default function AdminClient({
     const prodData: Partial<Product> = {
       name: pName,
       category: pCategory,
-      subcategory: pSubcategory || undefined,
+      // Deepest taxonomy node wins: Child Collection > Sub-Category
+      subcategory: pChildCollection || pSubcategory || undefined,
       price: Number(pPrice),
       originalPrice: hasOrigPrice ? Number(pOrigPrice) : undefined,
       description: pDesc || 'Handcrafted Habesha garment.',
-      material: pMaterial,
-      occasion: pOccasion,
+      // Legacy columns auto-derived from dynamic attributes so older views keep working
+      material: typeof pAttributes.fabric === 'string' && pAttributes.fabric ? pAttributes.fabric : undefined,
+      occasion: typeof pAttributes.occasion === 'string' && pAttributes.occasion ? pAttributes.occasion : undefined,
       fabricCare: pFabricCare,
       deliveryInfo: pDeliveryInfo,
       stockQuantity: Number(pStock || 15),
@@ -577,6 +569,7 @@ export default function AdminClient({
     setSubName('');
     setSubSlug('');
     setSubCategorySlug(categories[0]?.slug || 'dresses');
+    setSubParent('');
     setSubDesc('');
     setSubBadgeColor('#C5A880');
     setShowSubModal(true);
@@ -587,6 +580,7 @@ export default function AdminClient({
     setSubName(sub.name);
     setSubSlug(sub.slug);
     setSubCategorySlug(sub.categorySlug);
+    setSubParent(sub.parentSlug || '');
     setSubDesc(sub.description || '');
     setSubBadgeColor(sub.badgeColor || '#C5A880');
     setShowSubModal(true);
@@ -604,6 +598,7 @@ export default function AdminClient({
         name: subName,
         slug,
         categorySlug: subCategorySlug,
+        parentSlug: subParent || undefined,
         description: subDesc,
         badgeColor: subBadgeColor,
       });
@@ -613,6 +608,7 @@ export default function AdminClient({
         name: subName,
         slug,
         categorySlug: subCategorySlug,
+        parentSlug: subParent || undefined,
         description: subDesc,
         badgeColor: subBadgeColor,
       });
@@ -635,39 +631,14 @@ export default function AdminClient({
     }
   };
 
-  // Product Property Handlers (Materials, Occasions, Custom Tags)
-  const handleOpenAddProperty = (type: 'material' | 'occasion' | 'tag') => {
-    setPropType(type);
-    setPropName('');
-    setPropDesc('');
-    setPropBadgeColor('#C5A880');
-    setShowPropModal(true);
-  };
-
-  const handleSaveProperty = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!propName) return;
-
-    await createProductProperty({
-      type: propType,
-      name: propName,
-      description: propDesc,
-      badgeColor: propBadgeColor,
-    });
-
-    const updated = await getProductProperties();
-    setProperties(updated);
-    showToast(`Created new ${propType}: "${propName}"`);
-    setShowPropModal(false);
-  };
-
-  const handleDeleteProperty = async (id: string, name: string) => {
-    if (confirm(`Delete property "${name}"?`)) {
-      await deleteProductProperty(id);
-      setProperties(properties.filter((p) => p.id !== id));
-      showToast(`Deleted property "${name}"`);
-    }
-  };
+  // Attribute scoping across the full taxonomy chain: Category → Sub-Category → Child Collection.
+  // An attribute shows up when bound to ANY level the product currently targets.
+  const activeTaxonomyKeys = [String(pCategory), pSubcategory.trim(), pChildCollection.trim()]
+    .map((k) => k.toLowerCase())
+    .filter(Boolean);
+  const isDefActive = (pdef: PropertyDefinition) =>
+    pdef.categoryIds.includes('all') ||
+    pdef.categoryIds.some((cid) => activeTaxonomyKeys.includes(cid.toLowerCase()));
 
   // Property Definition Metadata Studio Handlers
   const handleOpenAddPropDef = () => {
@@ -861,7 +832,7 @@ export default function AdminClient({
   }
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] flex flex-col lg:flex-row font-sans">
+    <div className="hiwi-admin min-h-screen bg-[#FAF8F5] flex flex-col lg:flex-row font-sans">
       
       {/* Toast Notification */}
       {notification && (
@@ -943,8 +914,8 @@ export default function AdminClient({
             </div>
           </div>
 
-          {/* Navigation Links */}
-          <nav className="space-y-1.5">
+          <span className="text-[9px] font-bold tracking-[0.3em] text-zinc-600 uppercase px-1">Manage</span>
+          <nav className="space-y-1">
             {navMenuItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -952,7 +923,7 @@ export default function AdminClient({
                 <button
                   key={item.id}
                   onClick={() => handleTabClick(item.id as any)}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-xs font-bold transition-all ${
+                  className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
                     isActive
                       ? 'bg-[#C5A880] text-black shadow-lg font-extrabold'
                       : 'text-gray-400 hover:bg-zinc-900 hover:text-white'
@@ -982,7 +953,7 @@ export default function AdminClient({
         <div className="pt-6 border-t border-zinc-800 space-y-3">
           <Link
             href="/"
-            className="w-full py-2.5 px-4 bg-zinc-900 hover:bg-[#C5A880] hover:text-black text-gray-300 text-xs font-bold rounded-xl flex items-center justify-center gap-2 border border-zinc-800 transition-colors"
+            className="w-full py-2.5 px-4 bg-zinc-900 hover:bg-[#C5A880] hover:text-black text-gray-300 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
           >
             <ExternalLink className="w-3.5 h-3.5" />
             <span>Go to Storefront Website</span>
@@ -990,7 +961,7 @@ export default function AdminClient({
 
           <button
             onClick={handleLogout}
-            className="w-full py-2.5 px-4 bg-red-950/40 hover:bg-red-900/60 text-red-300 text-xs font-bold rounded-xl flex items-center justify-center gap-2 border border-red-900/50"
+            className="w-full py-2.5 px-4 bg-red-950/40 hover:bg-red-900/60 text-red-300 text-xs font-bold rounded-xl flex items-center justify-center gap-2"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>Sign Out</span>
@@ -1020,7 +991,7 @@ export default function AdminClient({
             {/* Metrics Cards Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               
-              <div className="bg-white p-6 rounded-3xl border border-[#E7E2DA] shadow-xs space-y-3">
+              <div className="adm-card p-6 space-y-3">
                 <div className="flex items-center justify-between text-gray-500 text-xs font-bold uppercase tracking-wider">
                   <span>Inquiry Sales (ETB)</span>
                   <div className="w-9 h-9 rounded-2xl bg-green-100 text-green-700 flex items-center justify-center">
@@ -1033,7 +1004,7 @@ export default function AdminClient({
                 <p className="text-[11px] text-gray-400">Total Telegram customer inquiries</p>
               </div>
 
-              <div className="bg-white p-6 rounded-3xl border border-[#E7E2DA] shadow-xs space-y-3">
+              <div className="adm-card p-6 space-y-3">
                 <div className="flex items-center justify-between text-gray-500 text-xs font-bold uppercase tracking-wider">
                   <span>Telegram Orders</span>
                   <div className="w-9 h-9 rounded-2xl bg-sky-100 text-[#0088cc] flex items-center justify-center">
@@ -1044,7 +1015,7 @@ export default function AdminClient({
                 <p className="text-[11px] text-amber-600 font-semibold">{pendingOrdersCount} pending confirmation</p>
               </div>
 
-              <div className="bg-white p-6 rounded-3xl border border-[#E7E2DA] shadow-xs space-y-3">
+              <div className="adm-card p-6 space-y-3">
                 <div className="flex items-center justify-between text-gray-500 text-xs font-bold uppercase tracking-wider">
                   <span>Active Products</span>
                   <div className="w-9 h-9 rounded-2xl bg-amber-100 text-[#C5A880] flex items-center justify-center">
@@ -1055,7 +1026,7 @@ export default function AdminClient({
                 <p className="text-[11px] text-gray-400">Catalog items in Supabase</p>
               </div>
 
-              <div className="bg-white p-6 rounded-3xl border border-[#E7E2DA] shadow-xs space-y-3">
+              <div className="adm-card p-6 space-y-3">
                 <div className="flex items-center justify-between text-gray-500 text-xs font-bold uppercase tracking-wider">
                   <span>Categories</span>
                   <div className="w-9 h-9 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center">
@@ -1069,7 +1040,7 @@ export default function AdminClient({
             </div>
 
             {/* Quick Recent Orders Summary */}
-            <div className="bg-white p-6 rounded-3xl border border-[#E7E2DA] shadow-xs space-y-4">
+            <div className="adm-card p-6 space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="font-bold text-base text-[#1A1A1A]">Recent Customer Inquiry Orders</h3>
                 <button
@@ -1484,84 +1455,22 @@ export default function AdminClient({
                 })}
             </div>
 
-            {/* DYNAMIC MATERIALS / FABRICS MANAGEMENT */}
-            <div className="pt-8 space-y-4 border-t border-[#E7E2DA]">
-              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+            {/* UNIFIED ATTRIBUTES NOTICE */}
+            <div className="pt-8">
+              <div className="p-5 bg-gradient-to-r from-amber-50/80 to-transparent rounded-2xl border border-amber-200/70 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                  <h3 className="font-serif text-2xl font-bold text-[#1A1A1A]">Dynamic Materials & Fabrics</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">Admin-managed fabric options surfaced in Product creation & Client storefront filter</p>
+                  <h3 className="font-bold text-sm text-[#1A1A1A]">Materials, Fabrics, Occasions & every other property live in one place.</h3>
+                  <p className="text-xs text-gray-500 mt-1 max-w-xl">
+                    The old separate Material/Occasion lists are retired. Create unlimited attributes (with options, colors,
+                    ranges and per-category binding) in the <span className="font-bold">Product Properties Studio</span> tab below.
+                  </p>
                 </div>
                 <button
-                  onClick={() => handleOpenAddProperty('material')}
-                  className="px-4 py-2.5 bg-white border border-[#1A1A1A] hover:bg-[#1A1A1A] hover:text-white text-[#1A1A1A] text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-2xs flex items-center justify-center gap-2 shrink-0"
+                  onClick={() => setActiveTab('properties')}
+                  className="px-4 py-2 bg-[#1A1A1A] hover:bg-[#C5A880] hover:text-black text-white text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all shrink-0"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>Add Material / Fabric</span>
+                  Open Attribute Manager
                 </button>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                {properties
-                  .filter((p) => p.type === 'material')
-                  .map((mat) => {
-                    const count = products.filter(p => p.material && p.material.toLowerCase().includes(mat.name.toLowerCase())).length;
-                    return (
-                      <div key={mat.id} className="p-4 bg-white rounded-2xl border border-[#E7E2DA] shadow-2xs flex items-center justify-between gap-2 hover:border-[#C5A880] transition-colors">
-                        <div>
-                          <span className="font-bold text-xs text-[#1A1A1A] block">{mat.name}</span>
-                          <span className="text-[10px] text-gray-400 font-mono block mt-0.5">{count} items tagged</span>
-                        </div>
-                        <button
-                          onClick={() => handleDeleteProperty(mat.id, mat.name)}
-                          className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                          title="Delete Material"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
-
-            {/* DYNAMIC OCCASIONS & COLLECTIONS MANAGEMENT */}
-            <div className="pt-8 space-y-4 border-t border-[#E7E2DA]">
-              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                <div>
-                  <h3 className="font-serif text-2xl font-bold text-[#1A1A1A]">Dynamic Occasions & Collections</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">Admin-managed occasion filters (Ceremonial, Holiday, Casual, Gala)</p>
-                </div>
-                <button
-                  onClick={() => handleOpenAddProperty('occasion')}
-                  className="px-4 py-2.5 bg-white border border-[#1A1A1A] hover:bg-[#1A1A1A] hover:text-white text-[#1A1A1A] text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-2xs flex items-center justify-center gap-2 shrink-0"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add Occasion Filter</span>
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {properties
-                  .filter((p) => p.type === 'occasion')
-                  .map((occ) => {
-                    const count = products.filter(p => p.occasion && p.occasion.toLowerCase().includes(occ.name.toLowerCase())).length;
-                    return (
-                      <div key={occ.id} className="p-4 bg-white rounded-2xl border border-[#E7E2DA] shadow-2xs flex items-center justify-between gap-3 hover:border-[#C5A880] transition-colors">
-                        <div>
-                          <span className="font-bold text-xs text-[#1A1A1A] block">{occ.name}</span>
-                          <span className="text-[10px] text-gray-500 line-clamp-1 mt-0.5">{occ.description || 'Occasion filter tag'}</span>
-                          <span className="text-[10px] text-amber-700 font-bold block mt-1">{count} items tagged</span>
-                        </div>
-                        <button
-                          onClick={() => handleDeleteProperty(occ.id, occ.name)}
-                          className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                          title="Delete Occasion"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    );
-                  })}
               </div>
             </div>
 
@@ -2420,13 +2329,13 @@ export default function AdminClient({
         {/* COMPREHENSIVE ADD & EDIT PRODUCT FORM MODAL */}
         {showProductModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-6 overflow-y-auto">
-            <div className="w-full max-w-3xl bg-white rounded-3xl shadow-2xl p-5 sm:p-8 border border-[#E7E2DA] space-y-6 my-auto max-h-[85vh] sm:max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-200">
+            <div className="w-full max-w-3xl bg-white rounded-3xl shadow-2xl p-5 sm:p-8 space-y-7 my-auto max-h-[85vh] sm:max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-200">
               
-              <div className="flex justify-between items-center pb-4 border-b border-[#E7E2DA]">
+              <div className="flex justify-between items-start pb-4 border-b border-gray-100">
                 <div>
-                  <span className="text-[10px] font-extrabold uppercase tracking-[0.25em] text-[#C5A880]">PRODUCT ATELIER MANAGEMENT</span>
-                  <h3 className="font-bold text-xl text-[#1A1A1A]">
-                    {editingProductId ? 'Edit Catalog Product Item' : 'Create New Catalog Product'}
+                  <span className="adm-kicker">Product Atelier</span>
+                  <h3 className="font-serif text-xl text-[#1A1A1A] mt-0.5">
+                    {editingProductId ? 'Edit Catalog Product' : 'Create New Product'}
                   </h3>
                 </div>
                 <button onClick={() => setShowProductModal(false)} className="text-gray-400 hover:text-black p-1">
@@ -2434,13 +2343,14 @@ export default function AdminClient({
                 </button>
               </div>
 
-              <form onSubmit={handleSaveProduct} className="space-y-6 text-xs">
+              <form onSubmit={handleSaveProduct} className="space-y-7 text-xs">
                 
                 {/* 1. BASIC INFORMATION */}
-                <div className="space-y-3 p-4 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA]">
-                  <span className="font-bold text-xs uppercase tracking-wider text-gray-900 block border-b border-[#E7E2DA] pb-2">
-                    1. Basic Product Overview
-                  </span>
+                <div className="space-y-4">
+                  <div className="adm-section-head">
+                    <span className="adm-kicker">01</span>
+                    <strong>Basic Overview</strong>
+                  </div>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
                     <div className="sm:col-span-2">
@@ -2467,6 +2377,7 @@ export default function AdminClient({
                           onChange={(e) => {
                             setPCategory(e.target.value);
                             setPSubcategory('');
+                            setPChildCollection('');
                           }}
                           className="w-full px-3.5 py-2.5 border rounded-xl bg-white font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
                         >
@@ -2496,29 +2407,53 @@ export default function AdminClient({
                             new Set([...(activeCatObj?.subcategories || []), ...managedSubcats])
                           );
 
+                          const chosenSub = subcategories.find(
+                            (s) => s.name === pSubcategory || s.slug === pSubcategory
+                          );
+                          const children = pSubcategory
+                            ? subcategories.filter(
+                                (s) =>
+                                  s.parentSlug &&
+                                  (s.parentSlug === chosenSub?.slug ||
+                                    s.parentSlug.toLowerCase() === pSubcategory.toLowerCase())
+                              )
+                            : [];
+
                           return (
                             <div className="space-y-1.5">
-                              {subcats.length > 0 && (
+                              {/* SINGLE combobox field — pick a suggestion or type your own; value lives here only */}
+                              <input
+                                type="text"
+                                list={`subcat-options-${pCategory}`}
+                                value={pSubcategory}
+                                onChange={(e) => {
+                                  setPSubcategory(e.target.value);
+                                  setPChildCollection('');
+                                }}
+                                placeholder={subcats.length > 0 ? 'Select or type a sub-category…' : 'e.g. Traditional Habesha Kemis'}
+                                className="w-full px-3.5 py-2.5 bg-white font-medium text-xs text-[#1A1A1A]"
+                              />
+                              <datalist id={`subcat-options-${pCategory}`}>
+                                {subcats.map((sc) => (
+                                  <option key={sc} value={sc} />
+                                ))}
+                              </datalist>
+
+                              {/* Child collections appear only when the picked sub-category has them */}
+                              {children.length > 0 && (
                                 <select
-                                  value={pSubcategory}
-                                  onChange={(e) => setPSubcategory(e.target.value)}
-                                  className="w-full px-3.5 py-2 border rounded-xl bg-white font-bold text-xs text-[#1A1A1A] focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
+                                  value={pChildCollection}
+                                  onChange={(e) => setPChildCollection(e.target.value)}
+                                  className="w-full px-3.5 py-2 bg-white font-medium text-xs text-[#1A1A1A]"
                                 >
-                                  <option value="">-- Choose Sub-Category --</option>
-                                  {subcats.map((sc) => (
-                                    <option key={sc} value={sc}>
-                                      {sc}
+                                  <option value="">-- Child collection / brand (optional) --</option>
+                                  {children.map((ch) => (
+                                    <option key={ch.id} value={ch.name}>
+                                      {ch.name}
                                     </option>
                                   ))}
                                 </select>
                               )}
-                              <input
-                                type="text"
-                                value={pSubcategory}
-                                onChange={(e) => setPSubcategory(e.target.value)}
-                                placeholder={subcats.length > 0 ? "Or custom style tag" : "e.g. Traditional Habesha Kemis"}
-                                className="w-full px-3.5 py-2 border rounded-xl font-medium text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
-                              />
                             </div>
                           );
                         })()}
@@ -2763,62 +2698,8 @@ export default function AdminClient({
                     />
                   </div>
 
-                  {/* DYNAMIC MATERIAL & OCCASION PROPERTY SELECTORS */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA]">
-                    <div>
-                      <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                        Material / Fabric Property
-                      </label>
-                      <select
-                        value={pMaterial}
-                        onChange={(e) => setPMaterial(e.target.value)}
-                        className="w-full px-3.5 py-2 border rounded-xl bg-white font-bold text-xs text-[#1A1A1A] focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
-                      >
-                        <option value="">-- Select Material Property --</option>
-                        {properties
-                          .filter((p) => p.type === 'material')
-                          .map((m) => (
-                            <option key={m.id} value={m.name}>
-                              {m.name}
-                            </option>
-                          ))}
-                      </select>
-                      <input
-                        type="text"
-                        value={pMaterial}
-                        onChange={(e) => setPMaterial(e.target.value)}
-                        placeholder="Or custom fabric (e.g. 100% Linen)"
-                        className="w-full px-3 py-1.5 border rounded-xl font-medium text-xs bg-white mt-1.5"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                        Occasion / Collection Property
-                      </label>
-                      <select
-                        value={pOccasion}
-                        onChange={(e) => setPOccasion(e.target.value)}
-                        className="w-full px-3.5 py-2 border rounded-xl bg-white font-bold text-xs text-[#1A1A1A] focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
-                      >
-                        <option value="">-- Select Occasion Property --</option>
-                        {properties
-                          .filter((p) => p.type === 'occasion')
-                          .map((o) => (
-                            <option key={o.id} value={o.name}>
-                              {o.name}
-                            </option>
-                          ))}
-                      </select>
-                      <input
-                        type="text"
-                        value={pOccasion}
-                        onChange={(e) => setPOccasion(e.target.value)}
-                        placeholder="Or custom occasion (e.g. Ceremonial & Wedding)"
-                        className="w-full px-3 py-1.5 border rounded-xl font-medium text-xs bg-white mt-1.5"
-                      />
-                    </div>
-                  </div>
+                  {/* NOTE: Material & Occasion are now fully dynamic attributes (section 6).
+                      Legacy columns auto-derive from the selected Fabric/Occasion attribute. */}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -2872,28 +2753,16 @@ export default function AdminClient({
                 </div>
 
                 {/* 6. DYNAMIC METADATA ATTRIBUTES (SCHEMA MANAGER DRIVEN) */}
-                {propertyDefinitions.filter(
-                  (pdef) =>
-                    pdef.categoryIds.includes('all') ||
-                    pdef.categoryIds.includes(pCategory)
-                ).length > 0 && (
-                  <div className="p-4 bg-amber-50/60 rounded-2xl border border-amber-200/80 space-y-4">
-                    <div className="flex items-center justify-between border-b border-amber-200 pb-2">
-                      <label className="font-bold text-xs text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
-                        <SlidersHorizontal className="w-4 h-4 text-[#C5A880]" /> 6. Dynamic Category Attributes
-                      </label>
-                      <span className="text-[10px] text-amber-700 font-semibold bg-amber-100 px-2 py-0.5 rounded-md">
-                        Metadata Configured
-                      </span>
+                {propertyDefinitions.filter(isDefActive).length > 0 && (
+                  <div className="p-4 bg-amber-50/40 rounded-2xl border-l-4 border-l-[#C5A880] space-y-4">
+                    <div className="flex items-center justify-between pb-1">
+                      <span className="adm-kicker">06 · Dynamic Attributes</span>
+                      <span className="text-[10px] text-gray-400 font-medium">Auto-generates storefront filters</span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {propertyDefinitions
-                        .filter(
-                          (pdef) =>
-                            pdef.categoryIds.includes('all') ||
-                            pdef.categoryIds.includes(pCategory)
-                        )
+                        .filter(isDefActive)
                         .map((pdef) => {
                           const val = pAttributes[pdef.slug] !== undefined ? pAttributes[pdef.slug] : '';
                           return (
@@ -3040,8 +2909,8 @@ export default function AdminClient({
         {/* CATEGORY MODAL (Create & Edit) */}
         {showCatModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-6 overflow-y-auto">
-            <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 border border-[#E7E2DA] space-y-4 my-auto max-h-[85vh] sm:max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-200">
-              <div className="flex justify-between items-center pb-3 border-b border-[#E7E2DA]">
+            <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 space-y-4 my-auto max-h-[85vh] sm:max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-200">
+              <div className="flex justify-between items-center pb-3 border-b border-gray-100">
                 <h3 className="font-bold text-base text-[#1A1A1A]">
                   {editingCatId ? 'Edit Category' : 'Create New Category'}
                 </h3>
@@ -3155,7 +3024,7 @@ export default function AdminClient({
       {/* SUB-CATEGORY / STYLE MODAL (CREATE & EDIT) */}
       {showSubModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-[#E7E2DA] max-w-lg w-full p-6 space-y-6 shadow-2xl animate-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 space-y-6 animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between border-b border-[#E7E2DA] pb-4">
               <div className="flex items-center gap-2">
                 <div className="w-9 h-9 rounded-2xl bg-[#C5A880]/20 text-[#1A1A1A] flex items-center justify-center">
@@ -3197,7 +3066,10 @@ export default function AdminClient({
                 </label>
                 <select
                   value={subCategorySlug}
-                  onChange={(e) => setSubCategorySlug(e.target.value)}
+                  onChange={(e) => {
+                    setSubCategorySlug(e.target.value);
+                    setSubParent('');
+                  }}
                   className="w-full px-3.5 py-2.5 border rounded-xl font-bold bg-[#FAF8F5] focus:ring-2 focus:ring-[#C5A880]"
                 >
                   {categories.map((c) => (
@@ -3206,6 +3078,32 @@ export default function AdminClient({
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* HIERARCHY: optional Parent Collection turns this entry into a child / brand level */}
+              <div>
+                <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                  Parent Collection (Optional)
+                </label>
+                <select
+                  value={subParent}
+                  onChange={(e) => setSubParent(e.target.value)}
+                  className="w-full px-3.5 py-2.5 border rounded-xl font-bold bg-[#FAF8F5] focus:ring-2 focus:ring-[#C5A880]"
+                >
+                  <option value="">
+                    -- None — top-level Sub-Category --
+                  </option>
+                  {subcategories
+                    .filter((s) => s.categorySlug === subCategorySlug && !s.parentSlug && s.id !== editingSubId)
+                    .map((s) => (
+                      <option key={s.id} value={s.slug}>
+                        {s.name}
+                      </option>
+                    ))}
+                </select>
+                <p className="text-[10px] text-gray-500 mt-1 leading-relaxed">
+                  Pick a parent to make this a <span className="font-semibold">Child Collection / Brand</span> — e.g. under “Addis” add “Yizz” or “Olde School”. Attributes can be bound to any level.
+                </p>
               </div>
 
               <div>
@@ -3289,93 +3187,6 @@ export default function AdminClient({
         </div>
       )}
 
-      {/* DYNAMIC PROPERTY MODAL (MATERIAL, OCCASION, TAG) */}
-      {showPropModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-[#E7E2DA] max-w-md w-full p-6 space-y-6 shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between border-b border-[#E7E2DA] pb-4">
-              <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-2xl bg-[#C5A880]/20 text-[#1A1A1A] flex items-center justify-center">
-                  <SlidersHorizontal className="w-5 h-5 text-[#C5A880]" />
-                </div>
-                <div>
-                  <h3 className="font-serif text-lg font-bold text-[#1A1A1A]">
-                    Add Dynamic {propType === 'material' ? 'Material / Fabric' : propType === 'occasion' ? 'Occasion / Collection' : 'Custom Tag'}
-                  </h3>
-                  <p className="text-xs text-gray-500">Configure catalog filter property</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowPropModal(false)}
-                className="p-2 text-gray-400 hover:text-black rounded-xl hover:bg-gray-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveProperty} className="space-y-4 text-xs">
-              <div>
-                <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                  Property Type *
-                </label>
-                <select
-                  value={propType}
-                  onChange={(e: any) => setPropType(e.target.value)}
-                  className="w-full px-3.5 py-2.5 border rounded-xl font-bold bg-[#FAF8F5] focus:ring-2 focus:ring-[#C5A880]"
-                >
-                  <option value="material">Material / Fabric (e.g. Linen, Habesha Shemma, Silk)</option>
-                  <option value="occasion">Occasion / Collection (e.g. Ceremonial & Wedding, Holiday)</option>
-                  <option value="tag">Custom Property Tag</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                  Property Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={propName}
-                  onChange={(e) => setPropName(e.target.value)}
-                  placeholder={propType === 'material' ? 'e.g. Habesha Shemma, Bamboo Linen, Organza' : 'e.g. Ceremonial & Wedding'}
-                  className="w-full px-3.5 py-2.5 border rounded-xl font-bold text-[#1A1A1A] focus:ring-2 focus:ring-[#C5A880]"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                  Description / Tagline (Optional)
-                </label>
-                <textarea
-                  rows={2}
-                  value={propDesc}
-                  onChange={(e) => setPropDesc(e.target.value)}
-                  placeholder="Detailed description of material or occasion..."
-                  className="w-full px-3 py-2 border rounded-xl"
-                />
-              </div>
-
-              <div className="pt-4 flex justify-end gap-3 border-t border-[#E7E2DA]">
-                <button
-                  type="button"
-                  onClick={() => setShowPropModal(false)}
-                  className="px-5 py-2.5 border rounded-xl font-bold hover:bg-gray-100 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 bg-[#1A1A1A] hover:bg-[#C5A880] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-colors shadow-md"
-                >
-                  Save Property
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* PRODUCT PROPERTY DEFINITION MODAL (ADMIN SCHEMA MANAGER) */}
       {showPropDefModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
@@ -3448,7 +3259,8 @@ export default function AdminClient({
                     <option value="select">Select (Single Choice Dropdown)</option>
                     <option value="multi_select">Multi-Select (Multiple Choice Pills)</option>
                     <option value="color">Color Palette (Swatches with Hex Codes)</option>
-                    <option value="number">Number (Numeric Range/Filter)</option>
+                    <option value="number">Number (Numeric Value)</option>
+                    <option value="range">Range / Measurement (Min–Max Numeric)</option>
                     <option value="boolean">Boolean (Yes/No Toggle)</option>
                     <option value="text">Text (Free text note)</option>
                   </select>

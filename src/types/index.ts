@@ -58,12 +58,13 @@ export interface SubCategory {
   name: string;
   slug: string;
   categorySlug: string; // Parent Category slug or name
+  parentSlug?: string;  // Optional parent SubCategory — enables Category → SubCategory → Child Collection trees
   description?: string;
   itemCount?: number;
   badgeColor?: string;
 }
 
-export type PropertyType = 'select' | 'multi_select' | 'color' | 'number' | 'boolean' | 'text';
+export type PropertyType = 'select' | 'multi_select' | 'color' | 'number' | 'range' | 'boolean' | 'text';
 
 export interface PropertyOption {
   id: string;

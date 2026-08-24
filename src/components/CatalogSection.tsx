@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Product, Category, PropertyDefinition } from '../types';
 import { getPropertyDefinitions } from '../lib/supabase';
 import { ProductCard } from './ProductCard';
@@ -53,9 +54,56 @@ export const CatalogSection: React.FC<CatalogSectionProps> = ({
   const [propertyDefs, setPropertyDefs] = useState<PropertyDefinition[]>([]);
   const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string[]>>({});
 
+  const router = useRouter();
+  // Prevents the URL-sync effect from writing before initial hydration completes
+  const urlHydratedRef = useRef(false);
+
   useEffect(() => {
     getPropertyDefinitions().then((defs) => setPropertyDefs(defs.filter((d) => d.filterable)));
   }, []);
+
+  // Hydrate dynamic attribute filters once from URL on mount (?f_<code>=opt1,opt2&max=&cat=&sale=)
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+
+      const attrFilters: Record<string, string[]> = {};
+      sp.forEach((val, key) => {
+        if (key.startsWith('f_')) {
+          const parsed = val.split(',').map((v) => v.trim()).filter(Boolean);
+          if (parsed.length > 0) attrFilters[key.slice(2)] = parsed;
+        }
+      });
+      if (Object.keys(attrFilters).length > 0) setSelectedAttributes(attrFilters);
+
+      const maxParam = sp.get('max');
+      if (maxParam && !isNaN(Number(maxParam)) && Number(maxParam) > 0) setPriceMax(Number(maxParam));
+
+      const catParam = sp.get('cat');
+      if (catParam && catParam.includes(',')) {
+        const cats = catParam.split(',').map((c) => c.trim()).filter(Boolean);
+        if (cats.length > 1) setSelectedCategories(cats);
+      }
+
+      if (sp.get('sale') === 'true' && !initialSaleOnly) setSaleOnly(true);
+    } catch (e) {}
+    urlHydratedRef.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Mirror filter state into the URL so filtered views are shareable
+  useEffect(() => {
+    if (!urlHydratedRef.current) return;
+    const sp = new URLSearchParams();
+    if (selectedCategories.length > 0) sp.set('cat', selectedCategories.join(','));
+    if (saleOnly) sp.set('sale', 'true');
+    if (priceMax < 15000) sp.set('max', String(priceMax));
+    for (const [slug, vals] of Object.entries(selectedAttributes)) {
+      if (vals && vals.length > 0) sp.set(`f_${slug}`, vals.join(','));
+    }
+    const qs = sp.toString();
+    router.replace(qs ? `/catalog?${qs}` : '/catalog', { scroll: false });
+  }, [selectedCategories, selectedAttributes, saleOnly, priceMax, router]);
 
   // Helper to test if product matches category
   const isProductInCategory = (pCategory: string, catSlug: string, catName?: string) => {

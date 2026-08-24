@@ -140,10 +140,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             )}
           </div>
 
-          <div className="flex items-center gap-1 text-[11px] font-semibold text-gray-600">
-            <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
-            <span>{product.rating.toFixed(1)}</span>
-          </div>
+          {/* Real rating only — hidden completely when the product has no customer reviews */}
+          {Number(product.reviewsCount) > 0 && Number(product.rating) > 0 && (
+            <div className="flex items-center gap-1 text-[11px] font-semibold text-gray-600">
+              <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
+              <span>{Number(product.rating).toFixed(1)}</span>
+            </div>
+          )}
         </div>
 
         {/* Order Action Button */}

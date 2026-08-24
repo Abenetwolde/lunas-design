@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { Product, Category, SubCategory, ProductProperty, PropertyDefinition, OrderInquiry, SiteSettings, Review } from '../types';
+import { Product, Category, SubCategory, ProductProperty, PropertyDefinition, PropertyOption, PropertyType, OrderInquiry, SiteSettings, Review } from '../types';
 import { INITIAL_PRODUCTS, INITIAL_CATEGORIES } from '../data/mockProducts';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://xafspnuqhcpznrihtmvq.supabase.co';
@@ -249,8 +249,8 @@ export async function getProducts(): Promise<Product[]> {
       category: item.category,
       price: Number(item.price),
       originalPrice: item.original_price ? Number(item.original_price) : undefined,
-      rating: Number(item?.rating ),
-      reviewsCount: Number(item.reviews_count || 24),
+      rating: Number(item.rating) || 0,
+      reviewsCount: Number(item.reviews_count || 0),
       isNew: Boolean(item.is_new),
       isSale: Boolean(item.is_sale),
       inStock: item.in_stock !== undefined ? Boolean(item.in_stock) : true,
@@ -267,8 +267,94 @@ export async function getProducts(): Promise<Product[]> {
       fabricCare: item.fabric_care || 'Hand wash cold or dry clean recommended.',
       deliveryInfo: item.delivery_info || 'Fast delivery available in Addis Ababa within 24-48 hours.',
       stockQuantity: item.stock_quantity !== undefined ? item.stock_quantity : 15,
+      attributes: item.attributes || undefined,
       created_at: item.created_at,
     }));
+
+    // --- REAL RATING OVERLAY ---
+    // Ratings & review counts must reflect actual customer reviews from the
+    // database — never seeded/mock values stored on the product row.
+    // Single lightweight batched query, aggregated per product client-side.
+    try {
+      const { data: revRows, error: revError } = await supabase
+        .from('reviews')
+        .select('product_id, rating');
+
+      if (!revError && revRows) {
+        const agg: Record<string, { sum: number; count: number }> = {};
+        for (const row of revRows as any[]) {
+          const pid = String(row.product_id);
+          if (!agg[pid]) agg[pid] = { sum: 0, count: 0 };
+          agg[pid].sum += Number(row.rating) || 0;
+          agg[pid].count += 1;
+        }
+
+        for (const product of fetched) {
+          const stats = agg[String(product.id)];
+          if (stats && stats.count > 0) {
+            product.rating = Math.round((stats.sum / stats.count) * 10) / 10;
+            product.reviewsCount = stats.count;
+          } else {
+            // No real reviews -> zeroed out (UI hides stars), never fake values
+            product.rating = 0;
+            product.reviewsCount = 0;
+          }
+        }
+      }
+    } catch (revErr) {}
+
+    // --- REAL ATTRIBUTE VALUES OVERLAY (DYNAMIC EAV) ---
+    // Attach persisted attribute values from product_attribute_values so the
+    // storefront filters operate on real data, never hardcoded defaults.
+    try {
+      const [pavRes, defs] = await Promise.all([
+        supabase.from('product_attribute_values').select('product_id, attribute_id, option_id, value_text'),
+        getPropertyDefinitions(),
+      ]);
+
+      if (!pavRes.error && Array.isArray(pavRes.data)) {
+        const defsById: Record<string, PropertyDefinition> = {};
+        const optionValueById: Record<string, string> = {};
+        defs.forEach((d) => {
+          defsById[String(d.id)] = d;
+          (d.options || []).forEach((o) => {
+            optionValueById[String(o.id)] = String(o.value ?? o.name);
+          });
+        });
+
+        const valsByProduct: Record<string, Record<string, any>> = {};
+        for (const r of pavRes.data as any[]) {
+          const pid = String(r.product_id);
+          const def = defsById[String(r.attribute_id)];
+          if (!def) continue;
+
+          let value: any = r.value_text ?? '';
+          if (r.option_id && optionValueById[String(r.option_id)] !== undefined) {
+            value = optionValueById[String(r.option_id)];
+          }
+
+          if (!valsByProduct[pid]) valsByProduct[pid] = {};
+          if (def.type === 'multi_select') {
+            const arr: string[] = Array.isArray(valsByProduct[pid][def.slug]) ? valsByProduct[pid][def.slug] : [];
+            if (!arr.includes(String(value))) arr.push(String(value));
+            valsByProduct[pid][def.slug] = arr;
+          } else if (def.type === 'number' || def.type === 'range') {
+            valsByProduct[pid][def.slug] = Number(value);
+          } else if (def.type === 'boolean') {
+            valsByProduct[pid][def.slug] = value === true || value === 'true';
+          } else {
+            valsByProduct[pid][def.slug] = value;
+          }
+        }
+
+        for (const product of fetched) {
+          const eavVals = valsByProduct[String(product.id)];
+          if (eavVals && Object.keys(eavVals).length > 0) {
+            product.attributes = eavVals;
+          }
+        }
+      }
+    } catch (attrErr) {}
 
     inMemoryProducts = fetched;
     return fetched;
@@ -299,8 +385,8 @@ export async function createProduct(productData: Partial<Product>): Promise<{ su
     category: productData.category || 'dresses',
     price: Number(productData.price || 2500),
     originalPrice: productData.originalPrice ? Number(productData.originalPrice) : undefined,
-    rating: productData.rating || 5.0,
-    reviewsCount: productData.reviewsCount || 1,
+    rating: productData.rating !== undefined ? Number(productData.rating) : 0,
+    reviewsCount: productData.reviewsCount !== undefined ? Number(productData.reviewsCount) : 0,
     isNew: productData.isNew !== undefined ? productData.isNew : true,
     isSale: productData.isSale || false,
     inStock: productData.inStock !== undefined ? productData.inStock : true,
@@ -379,6 +465,12 @@ export async function createProduct(productData: Partial<Product>): Promise<{ su
     console.warn('Supabase createProduct caught exception:', err);
   }
 
+  // Persist dynamic EAV attribute selections into product_attribute_values
+  if (productData.attributes && Object.keys(productData.attributes).length > 0) {
+    newProduct.attributes = productData.attributes;
+    await saveProductAttributeValues(id, productData.attributes);
+  }
+
   inMemoryProducts.unshift(newProduct);
   return { success: true, data: newProduct };
 }
@@ -387,6 +479,10 @@ export async function createProduct(productData: Partial<Product>): Promise<{ su
  * Update an existing product
  */
 export async function updateProduct(id: string, productData: Partial<Product>): Promise<{ success: boolean; data?: Product }> {
+  // Persist dynamic EAV attribute selections alongside the product row update
+  if (productData.attributes !== undefined) {
+    await saveProductAttributeValues(id, productData.attributes);
+  }
   try {
     const updatePayload: any = {};
     if (productData.name !== undefined) updatePayload.name = productData.name;
@@ -783,6 +879,7 @@ export async function getSubcategories(): Promise<SubCategory[]> {
         name: item.name,
         slug: item.slug,
         categorySlug: item.category_slug || item.categorySlug || 'dresses',
+        parentSlug: item.parent_slug || undefined,
         description: item.description || '',
         badgeColor: item.badge_color || item.badgeColor || '#C5A880',
       }));
@@ -820,19 +917,21 @@ export async function createSubcategory(sub: Partial<SubCategory>): Promise<{ su
     name: sub.name || 'New Style Filter',
     slug,
     categorySlug: sub.categorySlug || 'dresses',
+    parentSlug: sub.parentSlug || undefined,
     description: sub.description || '',
     badgeColor: sub.badgeColor || '#C5A880',
     itemCount: 0,
   };
 
   try {
-    const payload = {
+    const payload: any = {
       name: newSub.name,
       slug: newSub.slug,
       category_slug: newSub.categorySlug,
       description: newSub.description,
       badge_color: newSub.badgeColor,
     };
+    if (newSub.parentSlug) payload.parent_slug = newSub.parentSlug;
     let { error } = await supabase.from('subcategories').insert([payload]);
     if (error && error.code === 'PGRST204') {
       console.warn('Subcategories table missing in Supabase, using in-memory mode:', error.message);
@@ -865,6 +964,7 @@ export async function updateSubcategory(id: string, subData: Partial<SubCategory
     if (subData.name !== undefined) payload.name = subData.name;
     if (subData.slug !== undefined) payload.slug = subData.slug;
     if (subData.categorySlug !== undefined) payload.category_slug = subData.categorySlug;
+    if (subData.parentSlug !== undefined) payload.parent_slug = subData.parentSlug;
     if (subData.description !== undefined) payload.description = subData.description;
     if (subData.badgeColor !== undefined) payload.badge_color = subData.badgeColor;
 
@@ -884,88 +984,6 @@ export async function deleteSubcategory(id: string): Promise<{ success: boolean 
   } catch (err) {}
 
   inMemorySubcategories = inMemorySubcategories.filter((s) => s.id !== id);
-  return { success: true };
-}
-
-export let inMemoryProductProperties: ProductProperty[] = [
-  // Materials
-  { id: 'prop-m1', type: 'material', name: 'Linen', slug: 'linen', description: 'Natural lightweight organic linen' },
-  { id: 'prop-m2', type: 'material', name: 'Cotton', slug: 'cotton', description: '100% pure Ethiopian cotton' },
-  { id: 'prop-m3', type: 'material', name: 'Habesha Shemma', slug: 'habesha-shemma', description: 'Traditional handwoven Shemma with Tibeb borders' },
-  { id: 'prop-m4', type: 'material', name: 'Silk', slug: 'silk', description: 'Pure luxury silk fabric' },
-  { id: 'prop-m5', type: 'material', name: 'Satin', slug: 'satin', description: 'Smooth lustrous evening satin' },
-  { id: 'prop-m6', type: 'material', name: 'Chiffon', slug: 'chiffon', description: 'Sheer lightweight chiffon' },
-  { id: 'prop-m7', type: 'material', name: 'Wool', slug: 'wool', description: 'Soft Ethiopian highland woven wool' },
-
-  // Occasions
-  { id: 'prop-o1', type: 'occasion', name: 'Ceremonial & Wedding', slug: 'ceremonial-wedding', description: 'Traditional weddings and formal ceremonies' },
-  { id: 'prop-o2', type: 'occasion', name: 'Holiday & Festival', slug: 'holiday-festival', description: 'Enkutatash, Timkat, and Ethiopian New Year' },
-  { id: 'prop-o3', type: 'occasion', name: 'Casual & Daily', slug: 'casual-daily', description: 'Comfortable modern daily wear' },
-  { id: 'prop-o4', type: 'occasion', name: 'Evening & Gala', slug: 'evening-gala', description: 'Formal night outfits and luxury gowns' },
-];
-
-/**
- * Fetch Product Properties (Materials, Occasions, Tags)
- */
-export async function getProductProperties(): Promise<ProductProperty[]> {
-  try {
-    const { data, error } = await supabase.from('product_properties').select('*');
-    if (!error && data && data.length > 0) {
-      const fetched = data.map((item: any) => ({
-        id: item.id,
-        type: item.type || 'material',
-        name: item.name,
-        slug: item.slug,
-        description: item.description || '',
-        badgeColor: item.badge_color || item.badgeColor || '#C5A880',
-      }));
-      inMemoryProductProperties = fetched;
-      return fetched;
-    }
-    return inMemoryProductProperties;
-  } catch (err) {
-    return inMemoryProductProperties;
-  }
-}
-
-/**
- * Create Product Property (Material, Occasion, or Custom Tag)
- */
-export async function createProductProperty(prop: Partial<ProductProperty>): Promise<{ success: boolean; data?: ProductProperty }> {
-  const slug = prop.slug || (prop.name || 'property').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
-  const newProp: ProductProperty = {
-    id: `prop-${Date.now()}`,
-    type: prop.type || 'material',
-    name: prop.name || 'New Property',
-    slug,
-    description: prop.description || '',
-    badgeColor: prop.badgeColor || '#C5A880',
-  };
-
-  try {
-    const payload = {
-      type: newProp.type,
-      name: newProp.name,
-      slug: newProp.slug,
-      description: newProp.description,
-      badge_color: newProp.badgeColor,
-    };
-    await supabase.from('product_properties').insert([payload]);
-  } catch (err) {}
-
-  inMemoryProductProperties.unshift(newProp);
-  return { success: true, data: newProp };
-}
-
-/**
- * Delete Product Property
- */
-export async function deleteProductProperty(id: string): Promise<{ success: boolean }> {
-  try {
-    await supabase.from('product_properties').delete().eq('id', id);
-  } catch (err) {}
-
-  inMemoryProductProperties = inMemoryProductProperties.filter((p) => p.id !== id);
   return { success: true };
 }
 
@@ -1104,32 +1122,140 @@ export let inMemoryPropertyDefinitions: PropertyDefinition[] = [
 ];
 
 /**
- * Fetch All Metadata Property Definitions
+ * Persist an attribute's child rows (options + category bindings) to the
+ * normalized EAV tables. Wipes and rewrites children for the attribute.
+ */
+async function persistAttributeChildren(def: PropertyDefinition): Promise<void> {
+  // Options
+  await supabase.from('attribute_options').delete().eq('attribute_id', def.id);
+  if (def.options && def.options.length > 0) {
+    const rows = def.options.map((o, i) => ({
+      id: o.id ? String(o.id) : `opt-${Date.now()}-${i}`,
+      attribute_id: def.id,
+      name: o.name,
+      value: o.value ?? o.name,
+      hex: o.hex || null,
+      display_order: i,
+    }));
+    await supabase.from('attribute_options').upsert(rows, { onConflict: 'id' });
+  }
+
+  // Category / Sub-category bindings ('all' = global)
+  await supabase.from('category_attributes').delete().eq('attribute_id', def.id);
+  const slugs = def.categoryIds && def.categoryIds.length > 0 ? Array.from(new Set(def.categoryIds)) : ['all'];
+  const catRows = slugs.map((s) => ({ category_slug: s, attribute_id: def.id }));
+  await supabase.from('category_attributes').upsert(catRows, { onConflict: 'category_slug,attribute_id' });
+}
+
+/**
+ * Persist a product's dynamic attribute selections into the EAV join table
+ * (`product_attribute_values`). Values are keyed by attribute code; option-based
+ * types resolve to attribute_options rows, free-form types store value_text.
+ */
+export async function saveProductAttributeValues(
+  productId: string,
+  attrs?: Record<string, any>
+): Promise<void> {
+  if (!attrs || typeof attrs !== 'object') return;
+  try {
+    const defs = await getPropertyDefinitions();
+    const defsByKey: Record<string, PropertyDefinition> = {};
+    defs.forEach((d) => {
+      defsByKey[d.slug] = d;
+      defsByKey[String(d.id)] = d;
+    });
+
+    // Always rebuild this product's values from scratch
+    await supabase.from('product_attribute_values').delete().eq('product_id', String(productId));
+
+    const rows: any[] = [];
+    const pushValue = (def: PropertyDefinition, rawVal: any) => {
+      if (rawVal === undefined || rawVal === null || rawVal === '') return;
+      if (def.type === 'select' || def.type === 'multi_select' || def.type === 'color') {
+        const opt = (def.options || []).find((o) => o.value === rawVal || o.name === rawVal);
+        rows.push({
+          product_id: String(productId),
+          attribute_id: def.id,
+          option_id: opt ? String(opt.id) : null,
+          value_text: opt ? opt.value : String(rawVal),
+        });
+      } else {
+        rows.push({
+          product_id: String(productId),
+          attribute_id: def.id,
+          option_id: null,
+          value_text: String(rawVal),
+        });
+      }
+    };
+
+    for (const [key, val] of Object.entries(attrs)) {
+      const def = defsByKey[key];
+      if (!def) continue;
+      if (Array.isArray(val)) val.forEach((v) => pushValue(def, v));
+      else pushValue(def, val);
+    }
+
+    if (rows.length > 0) {
+      await supabase.from('product_attribute_values').insert(rows);
+    }
+  } catch (err) {}
+}
+
+/**
+ * Fetch All Metadata Property Definitions (from normalized EAV tables:
+ * attributes + attribute_options + category_attributes)
  */
 export async function getPropertyDefinitions(): Promise<PropertyDefinition[]> {
   try {
-    const { data, error } = await supabase.from('property_definitions').select('*').order('display_order', { ascending: true });
-    if (!error && data && data.length > 0) {
-      const fetched: PropertyDefinition[] = data.map((item: any) => ({
-        id: item.id,
-        name: item.name,
-        slug: item.slug,
-        type: item.type || 'select',
-        description: item.description || '',
-        unit: item.unit || '',
-        options: item.options || [],
-        categoryIds: item.category_ids || ['all'],
-        filterable: item.filterable !== false,
-        variant: item.variant || false,
-        required: item.required || false,
-        showOnProductPage: item.show_on_product_page !== false,
-        showOnProductCard: item.show_on_product_card || false,
-        displayOrder: item.display_order || 0,
-        created_at: item.created_at,
+    const [attrRes, optRes, catRes] = await Promise.all([
+      supabase.from('attributes').select('*').order('display_order', { ascending: true }),
+      supabase.from('attribute_options').select('*').order('display_order', { ascending: true }),
+      supabase.from('category_attributes').select('*'),
+    ]);
+
+    if (!attrRes.error && attrRes.data && attrRes.data.length > 0) {
+      const optionsByAttr: Record<string, PropertyOption[]> = {};
+      for (const o of (optRes.data || []) as any[]) {
+        const aid = String(o.attribute_id);
+        if (!optionsByAttr[aid]) optionsByAttr[aid] = [];
+        optionsByAttr[aid].push({
+          id: String(o.id),
+          name: o.name,
+          value: o.value ?? o.name,
+          hex: o.hex || undefined,
+        });
+      }
+
+      const catsByAttr: Record<string, string[]> = {};
+      for (const c of (catRes.data || []) as any[]) {
+        const aid = String(c.attribute_id);
+        if (!catsByAttr[aid]) catsByAttr[aid] = [];
+        catsByAttr[aid].push(String(c.category_slug));
+      }
+
+      const fetched: PropertyDefinition[] = (attrRes.data as any[]).map((a) => ({
+        id: String(a.id),
+        name: a.name,
+        slug: a.code,
+        type: (a.input_type || 'select') as PropertyType,
+        description: a.description || '',
+        unit: a.unit || '',
+        options: optionsByAttr[String(a.id)] || [],
+        categoryIds: catsByAttr[String(a.id)] && catsByAttr[String(a.id)].length > 0 ? catsByAttr[String(a.id)] : ['all'],
+        filterable: a.filterable !== false,
+        variant: !!a.variant,
+        required: !!a.required,
+        showOnProductPage: a.show_on_product_page !== false,
+        showOnProductCard: !!a.show_on_product_card,
+        displayOrder: a.display_order ?? 0,
+        created_at: a.created_at,
       }));
+
       inMemoryPropertyDefinitions = fetched;
       return fetched;
     }
+
     return inMemoryPropertyDefinitions;
   } catch (err) {
     return inMemoryPropertyDefinitions;
@@ -1162,12 +1288,10 @@ export async function createPropertyDefinition(propDef: Partial<PropertyDefiniti
     const payload = {
       id: newPropDef.id,
       name: newPropDef.name,
-      slug: newPropDef.slug,
-      type: newPropDef.type,
+      code: newPropDef.slug,
+      input_type: newPropDef.type,
       description: newPropDef.description,
       unit: newPropDef.unit,
-      options: newPropDef.options,
-      category_ids: newPropDef.categoryIds,
       filterable: newPropDef.filterable,
       variant: newPropDef.variant,
       required: newPropDef.required,
@@ -1175,7 +1299,10 @@ export async function createPropertyDefinition(propDef: Partial<PropertyDefiniti
       show_on_product_card: newPropDef.showOnProductCard,
       display_order: newPropDef.displayOrder,
     };
-    await supabase.from('property_definitions').insert([payload]);
+    const { error } = await supabase.from('attributes').upsert([payload], { onConflict: 'id' });
+    if (!error) {
+      await persistAttributeChildren(newPropDef);
+    }
   } catch (err) {}
 
   inMemoryPropertyDefinitions.push(newPropDef);
@@ -1186,15 +1313,30 @@ export async function createPropertyDefinition(propDef: Partial<PropertyDefiniti
  * Update Property Definition
  */
 export async function updatePropertyDefinition(id: string, propData: Partial<PropertyDefinition>): Promise<{ success: boolean }> {
+  const existing = inMemoryPropertyDefinitions.find((p) => p.id === id);
+  const merged: PropertyDefinition = {
+    ...(existing || {
+      id,
+      name: 'Property',
+      slug: '',
+      type: 'select',
+      options: [],
+      categoryIds: ['all'],
+      filterable: true,
+      variant: false,
+      required: false,
+      showOnProductPage: true,
+      showOnProductCard: false,
+      displayOrder: 0,
+    }),
+    ...propData,
+    id,
+  };
+
   try {
-    const payload: any = {};
-    if (propData.name !== undefined) payload.name = propData.name;
-    if (propData.slug !== undefined) payload.slug = propData.slug;
-    if (propData.type !== undefined) payload.type = propData.type;
+    const payload: any = { name: merged.name, code: merged.slug, input_type: merged.type };
     if (propData.description !== undefined) payload.description = propData.description;
     if (propData.unit !== undefined) payload.unit = propData.unit;
-    if (propData.options !== undefined) payload.options = propData.options;
-    if (propData.categoryIds !== undefined) payload.category_ids = propData.categoryIds;
     if (propData.filterable !== undefined) payload.filterable = propData.filterable;
     if (propData.variant !== undefined) payload.variant = propData.variant;
     if (propData.required !== undefined) payload.required = propData.required;
@@ -1202,7 +1344,10 @@ export async function updatePropertyDefinition(id: string, propData: Partial<Pro
     if (propData.showOnProductCard !== undefined) payload.show_on_product_card = propData.showOnProductCard;
     if (propData.displayOrder !== undefined) payload.display_order = propData.displayOrder;
 
-    await supabase.from('property_definitions').update(payload).eq('id', id);
+    await supabase.from('attributes').update(payload).eq('id', id);
+
+    // Options and category bindings are rewritten wholesale
+    await persistAttributeChildren(merged);
   } catch (err) {}
 
   inMemoryPropertyDefinitions = inMemoryPropertyDefinitions.map((p) => (p.id === id ? { ...p, ...propData } : p));
@@ -1214,7 +1359,9 @@ export async function updatePropertyDefinition(id: string, propData: Partial<Pro
  */
 export async function deletePropertyDefinition(id: string): Promise<{ success: boolean }> {
   try {
-    await supabase.from('property_definitions').delete().eq('id', id);
+    // Cascades to attribute_options, category_attributes and product_attribute_values (FK ON DELETE CASCADE)
+    await supabase.from('attributes').delete().eq('id', id);
+    await supabase.from('product_attribute_values').delete().eq('attribute_id', id);
   } catch (err) {}
 
   inMemoryPropertyDefinitions = inMemoryPropertyDefinitions.filter((p) => p.id !== id);
