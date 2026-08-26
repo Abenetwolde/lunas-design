@@ -56,6 +56,7 @@ import {
   Copy,
   ExternalLink,
   ChevronRight,
+  ChevronLeft,
   PackageCheck,
   FileText,
   Tag,
@@ -69,6 +70,37 @@ import {
   Truck,
   Image as ImageIcon,
 } from 'lucide-react';
+
+/* ===== Product Atelier constants ===== */
+const PA_COLOR_PRESETS: ColorOption[] = [
+  { name: 'Pure White', hex: '#FAFAFA' },
+  { name: 'Ivory Cream', hex: '#FAF8F5' },
+  { name: 'Habesha Gold', hex: '#C5A880' },
+  { name: 'Royal Gold', hex: '#D4AF37' },
+  { name: 'Emerald Green', hex: '#1B4D3E' },
+  { name: 'Deep Burgundy', hex: '#800020' },
+  { name: 'Royal Navy', hex: '#002366' },
+  { name: 'Charcoal Black', hex: '#1A1A1A' },
+];
+const PA_SIZE_PRESETS = ['One Size', 'XS', 'S', 'M', 'L', 'XL', 'XXL'];
+
+const PaToggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string }> = ({ checked, onChange, label, hint }) => (
+  <div className="flex items-center justify-between gap-3 py-1">
+    <div>
+      <span className="text-xs font-semibold text-gray-800">{label}</span>
+      {hint && <p className="text-[10px] text-gray-400 mt-0.5">{hint}</p>}
+    </div>
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={'relative w-10 h-[22px] rounded-full transition-colors shrink-0 ' + (checked ? 'bg-[#C5A880]' : 'bg-gray-200')}
+    >
+      <span className={'absolute top-[3px] w-4 h-4 bg-white rounded-full shadow transition-all ' + (checked ? 'left-[21px]' : 'left-[3px]')} />
+    </button>
+  </div>
+);
 
 interface Props {
   initialProducts: Product[];
@@ -209,6 +241,15 @@ export default function AdminClient({
   const [pIsNew, setPIsNew] = useState(true);
   const [pIsSale, setPIsSale] = useState(false);
   const [pInStock, setPInStock] = useState(true);
+
+  // ---- Product Atelier: variant matrix & media drag state ----
+  const [variantMatrix, setVariantMatrix] = useState<Record<string, { price?: string; stock?: string; inStock: boolean }>>({});
+  const [customColorName, setCustomColorName] = useState('');
+  const [customColorHex, setCustomColorHex] = useState('#C5A880');
+  const [customSizeValue, setCustomSizeValue] = useState('');
+  const [dragOverCover, setDragOverCover] = useState(false);
+  const [pFeatured, setPFeatured] = useState(false);
+  const [attrVisibility, setAttrVisibility] = useState<Record<string, boolean>>({}); // per-product attribute Active/Hidden
   const [uploadingImg, setUploadingImg] = useState(false);
 
   // Dynamic Colors state in product form
@@ -265,6 +306,7 @@ export default function AdminClient({
   // Telegram Orders state
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [subParentFilter, setSubParentFilter] = useState<string>('all');
+  const [subSearch, setSubSearch] = useState('');
 
   // Dynamic Product Attributes state (for Product Atelier)
   const [pAttributes, setPAttributes] = useState<Record<string, any>>({});
@@ -353,6 +395,7 @@ export default function AdminClient({
     setPIsSale(false);
     setPInStock(true);
     setPAttributes({});
+    setAttrVisibility({});
     setShowProductModal(true);
   };
 
@@ -378,15 +421,15 @@ export default function AdminClient({
     setPIsSale(Boolean(prod.isSale));
     setPInStock(prod.inStock !== false);
     setPAttributes(prod.attributes || {});
+    setAttrVisibility({});
     setShowProductModal(true);
   };
 
   // Multi-file upload support for gallery images
-  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>, targetType: 'cover' | 'secondary' | 'gallery' | 'category') => {
-    if (e.target.files && e.target.files.length > 0) {
-      const files = Array.from(e.target.files);
-      setUploadingImg(true);
-
+  const uploadToTarget = async (files: File[], targetType: 'cover' | 'secondary' | 'gallery' | 'category') => {
+    if (files.length === 0) return;
+    setUploadingImg(true);
+    try {
       if (targetType === 'gallery') {
         const uploadedUrls: string[] = [];
         for (const file of files) {
@@ -398,8 +441,7 @@ export default function AdminClient({
           showToast(`${uploadedUrls.length} image(s) uploaded to Supabase Storage!`);
         }
       } else {
-        const file = files[0];
-        const { url } = await uploadImageToSupabase(file);
+        const { url } = await uploadImageToSupabase(files[0]);
         if (url) {
           if (targetType === 'cover') setPImage(url);
           else if (targetType === 'secondary') setPSecondaryImage(url);
@@ -407,8 +449,19 @@ export default function AdminClient({
           showToast('Image uploaded to Supabase Storage!');
         }
       }
+    } finally {
       setUploadingImg(false);
     }
+  };
+
+  const handleImageFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    targetType: 'cover' | 'secondary' | 'gallery' | 'category'
+  ) => {
+    if (e.target.files && e.target.files.length > 0) {
+      await uploadToTarget(Array.from(e.target.files), targetType);
+    }
+    e.target.value = '';
   };
 
   const handleAddColor = () => {
@@ -439,36 +492,56 @@ export default function AdminClient({
     }
   };
 
-  const handleSaveProduct = async (e: React.FormEvent) => {
+  const handleSaveProduct = async (e: React.FormEvent, isDraft = false) => {
     e.preventDefault();
-    if (!pName || !pPrice) return;
+    if (!pName.trim()) {
+      showToast('Product name is required.');
+      return;
+    }
+    if (!isDraft && !pImage) {
+      showToast('Please add a cover image before publishing.');
+      return;
+    }
 
     setLoading(true);
     const hasOrigPrice = Boolean(pOrigPrice && Number(pOrigPrice) > Number(pPrice));
 
+    // Sanitize variant dimensions at the source — never emit malformed values
+    const cleanSizes = Array.from(new Set(pSizes.map((s) => String(s).trim()).filter(Boolean)));
+    const cleanColors = pColors.filter((c) => c && c.name && c.hex);
+
+    // Roll the per-variant matrix up into the catalog's shared price/stock model
+    const finalPrice = matrixPrices.length > 0 ? String(Math.min(...matrixPrices)) : pPrice;
+    const finalStock = matrixStocks.length > 0 ? String(matrixStocks.reduce((a, b) => a + b, 0)) : pStock;
+    const finalInStock = matrixStocks.length > 0 ? activeVariantRows.some((r) => r.cell.inStock !== false) : pInStock;
+
+    // Drop attributes the admin toggled Hidden for this product
+    const savedAttributes = Object.fromEntries(
+      Object.entries(pAttributes).filter(([k]) => attrVisibility[k] !== false)
+    );
+
     const prodData: Partial<Product> = {
-      name: pName,
+      name: pName.trim(),
       category: pCategory,
-      // Deepest taxonomy node wins: Child Collection > Sub-Category
       subcategory: pChildCollection || pSubcategory || undefined,
-      price: Number(pPrice),
+      price: Number(finalPrice || (isDraft ? 2500 : 0)),
       originalPrice: hasOrigPrice ? Number(pOrigPrice) : undefined,
       description: pDesc || 'Handcrafted Habesha garment.',
-      // Legacy columns auto-derived from dynamic attributes so older views keep working
-      material: typeof pAttributes.fabric === 'string' && pAttributes.fabric ? pAttributes.fabric : undefined,
-      occasion: typeof pAttributes.occasion === 'string' && pAttributes.occasion ? pAttributes.occasion : undefined,
+      material: typeof savedAttributes.fabric === 'string' && savedAttributes.fabric ? savedAttributes.fabric : undefined,
+      occasion: typeof savedAttributes.occasion === 'string' && savedAttributes.occasion ? savedAttributes.occasion : undefined,
       fabricCare: pFabricCare,
       deliveryInfo: pDeliveryInfo,
-      stockQuantity: Number(pStock || 15),
-      image: pImage || '',
+      stockQuantity: Number(finalStock || (isDraft ? 0 : 15)),
+      image: pImage || '/images/hero.jpg',
       secondaryImage: pSecondaryImage || undefined,
       images: pGalleryImages.length > 0 ? pGalleryImages : [pImage].filter(Boolean),
-      isNew: pIsNew,
-      isSale: hasOrigPrice,
-      inStock: pInStock,
-      sizes: pSizes,
-      colors: pColors,
-      attributes: pAttributes,
+      isNew: isDraft ? false : pIsNew,
+      isSale: isDraft ? false : hasOrigPrice,
+      inStock: finalInStock,
+      sizes: cleanSizes,
+      colors: cleanColors,
+      badgeText: pFeatured ? 'FEATURED' : undefined,
+      attributes: savedAttributes,
     };
 
     if (editingProductId) {
@@ -476,19 +549,20 @@ export default function AdminClient({
       if (result.data) {
         setProducts((prev) => prev.map((p) => (p.id === editingProductId ? { ...p, ...result.data } : p)));
       }
-      showToast(`Updated product "${pName}"`);
+      showToast(isDraft ? 'Draft saved.' : `Updated product "${pName.trim()}"`);
     } else {
       const result = await createProduct(prodData);
       if (result.data) {
         setProducts((prev) => [result.data!, ...prev]);
       }
-      showToast(`Created product "${pName}"`);
+      showToast(isDraft ? 'Draft saved to catalog.' : `Created product "${pName.trim()}"`);
     }
 
     setShowProductModal(false);
     refreshAllData();
     setLoading(false);
   };
+
 
   const handleDeleteProduct = async (id: string, name: string) => {
     if (confirm(`Delete product "${name}" permanently?`)) {
@@ -498,7 +572,6 @@ export default function AdminClient({
     }
   };
 
-  // Category Handlers (Create & Edit)
   const handleOpenAddCategory = () => {
     setEditingCatId(null);
     setCatName('');
@@ -793,6 +866,49 @@ export default function AdminClient({
     return (o.status || 'Telegram Pending') === orderStatusFilter;
   });
 
+  // ---- Variant combinations (Color × Size) ----
+  const variantCombos =
+    pColors.length > 0 && pSizes.length > 0
+      ? pColors.flatMap((c) => pSizes.map((s) => ({ color: c, size: s })))
+      : [];
+  const hasVariants = variantCombos.length > 0;
+  const getCell = (k: string) => variantMatrix[k] || { price: '', stock: '', inStock: true };
+  const setCell = (k: string, patch: Partial<{ price?: string; stock?: string; inStock: boolean }>) =>
+    setVariantMatrix((m) => ({ ...m, [k]: { ...getCell(k), ...patch } }));
+  const activeVariantRows = variantCombos.map(({ color, size }) => ({
+    key: color.name + '/' + size,
+    color,
+    size,
+    cell: getCell(color.name + '/' + size),
+  }));
+  const matrixPrices = activeVariantRows.map((r) => parseFloat(r.cell.price || '')).filter((n) => !isNaN(n) && n > 0);
+  const matrixStocks = activeVariantRows.map((r) => parseInt(r.cell.stock || '', 10)).filter((n) => !isNaN(n) && n >= 0);
+
+  const toggleVariantColor = (c: ColorOption) =>
+    setPColors((prev) => (prev.some((x) => x.name === c.name) ? prev.filter((x) => x.name !== c.name) : [...prev, c]));
+  const toggleVariantSize = (s: string) =>
+    setPSizes((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
+  const addCustomVariantColor = () => {
+    const name = customColorName.trim();
+    if (!name) return;
+    toggleVariantColor({ name, hex: customColorHex });
+    setCustomColorName('');
+  };
+  const addCustomVariantSize = () => {
+    const v = customSizeValue.trim().toUpperCase();
+    if (v && !pSizes.includes(v)) setPSizes((prev) => [...prev, v]);
+    setCustomSizeValue('');
+  };
+  const moveGalleryImage = (idx: number, dir: -1 | 1) =>
+    setPGalleryImages((arr) => {
+      const a = [...arr];
+      const j = idx + dir;
+      if (j < 0 || j >= a.length) return a;
+      [a[idx], a[j]] = [a[j], a[idx]];
+      return a;
+    });
+  const removeGalleryImage = (idx: number) => setPGalleryImages((arr) => arr.filter((_, i) => i !== idx));
+
   // Stats Calculations
   const totalRevenue = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
   const pendingOrdersCount = orders.filter((o) => !o.status || o.status === 'Telegram Pending').length;
@@ -815,6 +931,24 @@ export default function AdminClient({
       router.push(`/admin/${tabId}`);
     }
   };
+
+  // ---- Sub-Categories table data ----
+  const q = subSearch.trim().toLowerCase();
+  const matchedSubs = subcategories.filter((sub) => {
+    if (subParentFilter !== 'all') {
+      const pc = categories.find((c) => c.slug === subParentFilter);
+      if (!(sub.categorySlug.toLowerCase() === subParentFilter.toLowerCase() || (pc && sub.categorySlug.toLowerCase() === pc.name.toLowerCase()))) return false;
+    }
+    if (!q) return true;
+    return sub.name.toLowerCase().includes(q) || (sub.slug || '').toLowerCase().includes(q) || (sub.description || '').toLowerCase().includes(q);
+  });
+  const orderedSubRows: { sub: SubCategory; isChild: boolean; parentName?: string }[] = [];
+  matchedSubs.filter((s) => !s.parentSlug).forEach((parent) => {
+    orderedSubRows.push({ sub: parent, isChild: false });
+    matchedSubs.filter((c) => c.parentSlug && (c.parentSlug === parent.slug || c.parentSlug.toLowerCase() === parent.name.toLowerCase())).forEach((child) => orderedSubRows.push({ sub: child, isChild: true, parentName: parent.name }));
+  });
+  matchedSubs.filter((s) => s.parentSlug && !orderedSubRows.some((r) => r.sub.id === s.id)).forEach((s) => orderedSubRows.push({ sub: s, isChild: true, parentName: s.parentSlug }));
+  const liveSubCount = (sub: SubCategory) => products.filter((p) => { const pSub = (p.subcategory || '').toLowerCase(); const s = sub.name.toLowerCase(); return pSub.includes(s) || s.includes(pSub); }).length;
 
   if (authChecking) {
     return (
@@ -1339,120 +1473,88 @@ export default function AdminClient({
               </button>
             </div>
 
-            {/* Filter by Parent Category Bar */}
-            <div className="p-4 bg-white rounded-3xl border border-[#E7E2DA] shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
-                <Tag className="w-4 h-4 text-[#C5A880]" />
-                <span className="text-xs font-bold text-gray-800 uppercase tracking-wider">Filter by Parent Category:</span>
+            {/* Toolbar */}
+            <div className="adm-card p-3 flex flex-col md:flex-row gap-3 md:items-center">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input type="text" value={subSearch} onChange={(e) => setSubSearch(e.target.value)} placeholder="Search by name, slug or description…" className="w-full pl-9 pr-3 py-2.5 text-xs font-medium" />
               </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setSubParentFilter('all')}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all border ${
-                    subParentFilter === 'all'
-                      ? 'bg-[#1A1A1A] text-white border-[#1A1A1A]'
-                      : 'bg-white text-gray-700 border-[#E7E2DA] hover:border-gray-400'
-                  }`}
-                >
-                  All ({subcategories.length})
+              <select value={subParentFilter} onChange={(e) => setSubParentFilter(e.target.value)} className="md:w-56 px-3 py-2.5 text-xs font-semibold cursor-pointer">
+                <option value="all">All main categories ({subcategories.length})</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.slug}>{c.name} ({subcategories.filter((s) => s.categorySlug.toLowerCase() === c.slug.toLowerCase()).length})</option>
+                ))}
+              </select>
+              {(subSearch || subParentFilter !== 'all') && (
+                <button onClick={() => { setSubSearch(''); setSubParentFilter('all'); }} className="text-[11px] font-bold text-gray-500 hover:text-[#C5A880] flex items-center gap-1 shrink-0">
+                  <X className="w-3.5 h-3.5" /> Clear
                 </button>
-                {categories.map((c) => {
-                  const count = subcategories.filter((s) => s.categorySlug.toLowerCase() === c.slug.toLowerCase() || s.categorySlug.toLowerCase() === c.name.toLowerCase()).length;
-                  const isSelected = subParentFilter === c.slug;
-                  return (
-                    <button
-                      key={c.id}
-                      onClick={() => setSubParentFilter(c.slug)}
-                      className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all border ${
-                        isSelected
-                          ? 'bg-[#1A1A1A] text-white border-[#1A1A1A]'
-                          : 'bg-white text-gray-700 border-[#E7E2DA] hover:border-[#C5A880]'
-                      }`}
-                    >
-                      {c.name} ({count})
-                    </button>
-                  );
-                })}
-              </div>
+              )}
             </div>
 
-            {/* Sub-Categories Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {subcategories
-                .filter((sub) => {
-                  if (subParentFilter === 'all') return true;
-                  const parentCat = categories.find((c) => c.slug === subParentFilter);
-                  return (
-                    sub.categorySlug.toLowerCase() === subParentFilter.toLowerCase() ||
-                    (parentCat && sub.categorySlug.toLowerCase() === parentCat.name.toLowerCase())
-                  );
-                })
-                .map((sub) => {
-                  const liveCount = products.filter((p) => {
-                    const pSub = (p.subcategory || '').toLowerCase();
-                    const pDesc = p.description.toLowerCase();
-                    const pName = p.name.toLowerCase();
-                    const s = sub.name.toLowerCase();
-                    return pSub.includes(s) || s.includes(pSub) || pDesc.includes(s) || pName.includes(s);
-                  }).length;
-
-                  const parentCat = categories.find(
-                    (c) => c.slug.toLowerCase() === sub.categorySlug.toLowerCase() || c.name.toLowerCase() === sub.categorySlug.toLowerCase()
-                  );
-
-                  return (
-                    <div
-                      key={sub.id}
-                      className="bg-white rounded-3xl p-5 border border-[#E7E2DA] shadow-xs space-y-4 flex flex-col justify-between hover:border-[#C5A880] transition-colors"
-                    >
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-gray-100 text-gray-800 border border-gray-200">
-                            {parentCat?.name || sub.categorySlug}
-                          </span>
-                          <span
-                            className="w-3.5 h-3.5 rounded-full border border-black/20 shadow-xs"
-                            style={{ backgroundColor: sub.badgeColor || '#C5A880' }}
-                            title={`Badge theme: ${sub.badgeColor}`}
-                          />
-                        </div>
-
-                        <div>
-                          <h3 className="font-bold text-base text-[#1A1A1A] flex items-center gap-2">
-                            <Tag className="w-4 h-4 text-[#C5A880]" />
-                            <span>{sub.name}</span>
-                          </h3>
-                          <span className="text-[10px] text-gray-400 font-mono block mt-0.5">slug: /{sub.slug}</span>
-                          <p className="text-xs text-gray-500 mt-2 line-clamp-2">
-                            {sub.description || 'Custom fashion style classification'}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="pt-3 border-t border-[#E7E2DA] flex items-center justify-between text-xs">
-                        <span className="font-bold text-gray-900 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
-                          {liveCount} Products
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => handleOpenEditSubcategory(sub)}
-                            className="p-1.5 text-gray-500 hover:text-[#C5A880] transition-colors"
-                            title="Edit Sub-Category"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteSubcategory(sub.id, sub.name)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
-                            title="Delete Sub-Category"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+            {/* Table */}
+            <div className="adm-card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] text-xs">
+                  <thead>
+                    <tr className="text-left text-[10px] uppercase tracking-wider text-gray-400 border-b border-gray-100 bg-[#FAFAF8]">
+                      <th className="px-5 py-3 font-semibold">Name</th>
+                      <th className="px-5 py-3 font-semibold">Slug</th>
+                      <th className="px-5 py-3 font-semibold">Main Category</th>
+                      <th className="px-5 py-3 font-semibold">Hierarchy</th>
+                      <th className="px-5 py-3 font-semibold text-center">Products</th>
+                      <th className="px-5 py-3 font-semibold text-right pr-5">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {orderedSubRows.map(({ sub, isChild, parentName }) => {
+                      const parentCat = categories.find((c) => c.slug.toLowerCase() === sub.categorySlug.toLowerCase() || c.name.toLowerCase() === sub.categorySlug.toLowerCase());
+                      const count = liveSubCount(sub);
+                      return (
+                        <tr key={sub.id} className="group hover:bg-[#FBF9F5]/70 transition-colors">
+                          <td className="px-5 py-3">
+                            <div className={'flex items-center gap-2 ' + (isChild ? 'pl-5' : '')}>
+                              {isChild && <span className="text-gray-300 text-[10px]">↳</span>}
+                              <span className="w-2.5 h-2.5 rounded-full border border-black/10 shrink-0" style={{ backgroundColor: sub.badgeColor || '#C5A880' }} />
+                              <span className="font-bold text-[#1A1A1A]">{sub.name}</span>
+                            </div>
+                            {sub.description && <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-1 max-w-xs">{sub.description}</p>}
+                          </td>
+                          <td className="px-5 py-3 font-mono text-[11px] text-gray-400">/{sub.slug}</td>
+                          <td className="px-5 py-3">
+                            <span className="px-2 py-0.5 rounded-md bg-gray-50 text-gray-600 text-[10px] font-semibold">{parentCat?.name || sub.categorySlug}</span>
+                          </td>
+                          <td className="px-5 py-3">
+                            {isChild ? (
+                              <span className="text-[11px] text-gray-500">Child of <span className="font-semibold text-gray-700">{parentName || sub.parentSlug}</span></span>
+                            ) : (
+                              <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Top level</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3 text-center">
+                            <span className={'inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ' + (count > 0 ? 'bg-amber-50 text-amber-700' : 'bg-gray-50 text-gray-400')}>{count}</span>
+                          </td>
+                          <td className="px-5 py-3 text-right pr-5">
+                            <div className="flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => handleOpenEditSubcategory(sub)} className="p-2 text-gray-500 hover:text-[#C5A880] hover:bg-[#C5A880]/10 rounded-lg transition-colors" title="Edit"><Edit className="w-4 h-4" /></button>
+                              <button onClick={() => handleDeleteSubcategory(sub.id, sub.name)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete"><Trash2 className="w-4 h-4" /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {orderedSubRows.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="px-5 py-12 text-center">
+                          <Tag className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+                          <p className="text-xs text-gray-500 font-medium">No sub-categories match your search.</p>
+                          <button onClick={() => { setSubSearch(''); setSubParentFilter('all'); }} className="text-[11px] font-bold text-[#C5A880] hover:underline mt-1">Clear filters</button>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* UNIFIED ATTRIBUTES NOTICE */}
@@ -2329,579 +2431,637 @@ export default function AdminClient({
         {/* COMPREHENSIVE ADD & EDIT PRODUCT FORM MODAL */}
         {showProductModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-6 overflow-y-auto">
-            <div className="w-full max-w-3xl bg-white rounded-3xl shadow-2xl p-5 sm:p-8 space-y-7 my-auto max-h-[85vh] sm:max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-200">
+            <div className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl p-5 sm:p-8 space-y-0 my-auto max-h-[85vh] sm:max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-200">
               
-              <div className="flex justify-between items-start pb-4 border-b border-gray-100">
-                <div>
-                  <span className="adm-kicker">Product Atelier</span>
-                  <h3 className="font-serif text-xl text-[#1A1A1A] mt-0.5">
-                    {editingProductId ? 'Edit Catalog Product' : 'Create New Product'}
-                  </h3>
+{/* Page Header */}
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 pb-5 border-b border-gray-100">
+                <div className="flex items-start gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowProductModal(false)}
+                    className="mt-0.5 p-2 -ml-2 rounded-xl text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors shrink-0"
+                    title="Back to Products"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <div>
+                    <span className="adm-kicker">Products</span>
+                    <h3 className="font-serif text-xl text-[#1A1A1A] leading-tight mt-0.5">Product Atelier</h3>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      {editingProductId ? 'Edit and configure this product' : 'Create and configure a new product'}
+                    </p>
+                  </div>
                 </div>
-                <button onClick={() => setShowProductModal(false)} className="text-gray-400 hover:text-black p-1">
-                  <X className="w-6 h-6" />
-                </button>
               </div>
 
-              <form onSubmit={handleSaveProduct} className="space-y-7 text-xs">
-                
-                {/* 1. BASIC INFORMATION */}
-                <div className="space-y-4">
+              <form onSubmit={handleSaveProduct} className="space-y-8">
+
+                {/* 01 BASIC INFORMATION */}
+                <section className="space-y-4">
                   <div className="adm-section-head">
                     <span className="adm-kicker">01</span>
-                    <strong>Basic Overview</strong>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
-                    <div className="sm:col-span-2">
-                      <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                        Product Title / Name *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={pName}
-                        onChange={(e) => setPName(e.target.value)}
-                        placeholder="e.g. Handwoven Shemma Netela Scarf"
-                        className="w-full px-3.5 py-2.5 border rounded-xl font-bold text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#C5A880] focus:border-[#C5A880]"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                          Main Category *
-                        </label>
-                        <select
-                          value={pCategory}
-                          onChange={(e) => {
-                            setPCategory(e.target.value);
-                            setPSubcategory('');
-                            setPChildCollection('');
-                          }}
-                          className="w-full px-3.5 py-2.5 border rounded-xl bg-white font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
-                        >
-                          {categories.map((c) => (
-                            <option key={c.id} value={c.slug}>{c.name}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                          Sub-Category / Style Filter
-                        </label>
-                        {(() => {
-                          const activeCatObj = categories.find(
-                            (c) => c.slug === pCategory || c.name.toLowerCase() === pCategory.toLowerCase()
-                          );
-                          const managedSubcats = subcategories
-                            .filter(
-                              (s) =>
-                                s.categorySlug.toLowerCase() === pCategory.toLowerCase() ||
-                                (activeCatObj && s.categorySlug.toLowerCase() === activeCatObj.slug.toLowerCase())
-                            )
-                            .map((s) => s.name);
-
-                          const subcats = Array.from(
-                            new Set([...(activeCatObj?.subcategories || []), ...managedSubcats])
-                          );
-
-                          const chosenSub = subcategories.find(
-                            (s) => s.name === pSubcategory || s.slug === pSubcategory
-                          );
-                          const children = pSubcategory
-                            ? subcategories.filter(
-                                (s) =>
-                                  s.parentSlug &&
-                                  (s.parentSlug === chosenSub?.slug ||
-                                    s.parentSlug.toLowerCase() === pSubcategory.toLowerCase())
-                              )
-                            : [];
-
-                          return (
-                            <div className="space-y-1.5">
-                              {/* SINGLE combobox field — pick a suggestion or type your own; value lives here only */}
-                              <input
-                                type="text"
-                                list={`subcat-options-${pCategory}`}
-                                value={pSubcategory}
-                                onChange={(e) => {
-                                  setPSubcategory(e.target.value);
-                                  setPChildCollection('');
-                                }}
-                                placeholder={subcats.length > 0 ? 'Select or type a sub-category…' : 'e.g. Traditional Habesha Kemis'}
-                                className="w-full px-3.5 py-2.5 bg-white font-medium text-xs text-[#1A1A1A]"
-                              />
-                              <datalist id={`subcat-options-${pCategory}`}>
-                                {subcats.map((sc) => (
-                                  <option key={sc} value={sc} />
-                                ))}
-                              </datalist>
-
-                              {/* Child collections appear only when the picked sub-category has them */}
-                              {children.length > 0 && (
-                                <select
-                                  value={pChildCollection}
-                                  onChange={(e) => setPChildCollection(e.target.value)}
-                                  className="w-full px-3.5 py-2 bg-white font-medium text-xs text-[#1A1A1A]"
-                                >
-                                  <option value="">-- Child collection / brand (optional) --</option>
-                                  {children.map((ch) => (
-                                    <option key={ch.id} value={ch.name}>
-                                      {ch.name}
-                                    </option>
-                                  ))}
-                                </select>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
+                    <strong>Basic Information</strong>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-2">
-                    <div>
-                      <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                        Selling Price (ETB) *
-                      </label>
-                      <input
-                        type="number"
-                        required
-                        value={pPrice}
-                        onChange={(e) => setPPrice(e.target.value)}
-                        placeholder="1200"
-                        className="w-full px-3.5 py-2.5 border rounded-xl font-bold text-sm text-[#1A1A1A] bg-white focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
-                      />
-                    </div>
+                  <div>
+                    <label className="block mb-1.5">Product Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={pName}
+                      onChange={(e) => setPName(e.target.value)}
+                      placeholder="e.g. Handwoven Shemma Netela Scarf"
+                      className="w-full px-3.5 py-2.5 font-semibold text-sm"
+                    />
+                  </div>
 
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                        Original Price (Optional)
-                      </label>
-                      <input
-                        type="number"
-                        value={pOrigPrice}
-                        onChange={(e) => setPOrigPrice(e.target.value)}
-                        placeholder="e.g. 1500 (blank if none)"
-                        className="w-full px-3.5 py-2.5 border rounded-xl text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                        Stock Availability *
-                      </label>
+                      <label className="block mb-1.5">Main Category *</label>
                       <select
-                        value={pInStock ? 'true' : 'false'}
-                        onChange={(e) => setPInStock(e.target.value === 'true')}
-                        className="w-full px-3.5 py-2.5 border rounded-xl bg-white font-bold text-[#1A1A1A] focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
+                        value={pCategory}
+                        onChange={(e) => {
+                          setPCategory(e.target.value);
+                          setPSubcategory('');
+                          setPChildCollection('');
+                        }}
+                        className="w-full px-3.5 py-2.5 font-semibold cursor-pointer"
                       >
-                        <option value="true">● In Stock</option>
-                        <option value="false">● Out of Stock</option>
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.slug}>{c.name}</option>
+                        ))}
                       </select>
                     </div>
-                  </div>
-                </div>
 
-                {/* 2. MEDIA & GALLERY */}
-                <div className="p-4 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA] space-y-4">
-                  <div className="flex justify-between items-center border-b border-[#E7E2DA] pb-2">
-                    <label className="font-bold text-xs text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
-                      <ImageIcon className="w-4 h-4 text-[#C5A880]" /> 2. Primary Cover & Gallery Uploads
-                    </label>
+                    <div>
+                      <label className="block mb-1.5">Subcategory / Style</label>
+                      {(() => {
+                        const activeCatObj = categories.find(
+                          (c) => c.slug === pCategory || c.name.toLowerCase() === pCategory.toLowerCase()
+                        );
+                        const managed = subcategories
+                          .filter(
+                            (s) =>
+                              s.categorySlug.toLowerCase() === pCategory.toLowerCase() ||
+                              (activeCatObj && s.categorySlug.toLowerCase() === activeCatObj.slug.toLowerCase())
+                          )
+                          .map((s) => s.name);
+                        const opts = Array.from(new Set([...(activeCatObj?.subcategories || []), ...managed]));
+                        const chosenSub = subcategories.find((s) => s.name === pSubcategory || s.slug === pSubcategory);
+                        const children = pSubcategory
+                          ? subcategories.filter(
+                              (s) =>
+                                s.parentSlug &&
+                                (s.parentSlug === chosenSub?.slug || s.parentSlug.toLowerCase() === pSubcategory.toLowerCase())
+                            )
+                          : [];
+                        return (
+                          <div className="space-y-1.5">
+                            <input
+                              type="text"
+                              list="pa-subcat-options"
+                              value={pSubcategory}
+                              onChange={(e) => { setPSubcategory(e.target.value); setPChildCollection(''); }}
+                              placeholder={opts.length > 0 ? 'Select or type…' : 'e.g. Traditional Habesha Kemis'}
+                              className="w-full px-3.5 py-2.5 font-medium"
+                            />
+                            <datalist id="pa-subcat-options">
+                              {opts.map((sc) => <option key={sc} value={sc} />)}
+                            </datalist>
+                            {children.length > 0 && (
+                              <select
+                                value={pChildCollection}
+                                onChange={(e) => setPChildCollection(e.target.value)}
+                                className="w-full px-3 py-2 font-medium"
+                              >
+                                <option value="">-- Child collection / brand (optional) --</option>
+                                {children.map((ch) => <option key={ch.id} value={ch.name}>{ch.name}</option>)}
+                              </select>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </section>
+
+                {/* 02 PRODUCT MEDIA */}
+                <section className="space-y-4">
+                  <div className="adm-section-head">
+                    <span className="adm-kicker">02</span>
+                    <strong>Product Media</strong>
                     {uploadingImg && (
-                      <span className="text-xs bg-[#C5A880] text-black font-extrabold px-3 py-1 rounded-full flex items-center gap-1.5 animate-pulse shadow-xs">
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Uploading image to Storage...
+                      <span className="ml-auto text-[10px] bg-[#C5A880]/15 text-[#A88B64] font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5">
+                        <RefreshCw className="w-3 h-3 animate-spin" /> Uploading…
                       </span>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <span className="font-bold text-gray-700 block">Primary Cover Image *</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        disabled={uploadingImg}
-                        onChange={(e) => handleImageFileChange(e, 'cover')}
-                        className="w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#1A1A1A] file:text-white hover:file:bg-[#C5A880] cursor-pointer disabled:opacity-50"
-                      />
-                      {uploadingImg && (
-                        <div className="p-2 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-amber-800 text-[11px] font-bold">
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#C5A880]" />
-                          <span>Uploading image file...</span>
-                        </div>
-                      )}
-                      <input
-                        type="text"
-                        value={pImage}
-                        onChange={(e) => setPImage(e.target.value)}
-                        placeholder="Or enter Image URL"
-                        className="w-full px-3 py-1.5 border rounded-xl bg-white"
-                      />
-                      {pImage && <img src={pImage} alt="Cover Preview" className="w-20 h-24 object-cover rounded-xl border mt-2 shadow-xs" />}
+                  <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+                    <div className="lg:col-span-2">
+                      <label className="block mb-1.5">Cover Image *</label>
+                      <div
+                        onDragOver={(e) => { e.preventDefault(); setDragOverCover(true); }}
+                        onDragLeave={() => setDragOverCover(false)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setDragOverCover(false);
+                          const f = e.dataTransfer.files?.[0];
+                          if (f) uploadToTarget([f], 'cover');
+                        }}
+                        onClick={() => document.getElementById('pa-cover-input')?.click()}
+                        className={
+                          'relative rounded-2xl border-2 border-dashed cursor-pointer transition-colors overflow-hidden group ' +
+                          (dragOverCover ? 'border-[#C5A880] bg-[#C5A880]/5' : 'border-gray-200 hover:border-[#C5A880]/60 bg-[#FBFAF7]')
+                        }
+                      >
+                        {pImage ? (
+                          <>
+                            <img src={pImage} alt="Cover preview" className="w-full aspect-[3/4] object-cover" />
+                            <div className="absolute inset-x-0 bottom-0 p-2 flex gap-2 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                              <span className="flex-1 py-1.5 text-center text-[11px] font-bold text-white bg-black/50 hover:bg-black/70 rounded-lg">Replace</span>
+                              <span
+                                onClick={(ev) => { ev.stopPropagation(); setPImage(''); }}
+                                className="py-1.5 px-3 text-[11px] font-bold text-red-300 hover:text-red-100 bg-black/50 hover:bg-black/70 rounded-lg"
+                              >
+                                Remove
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="py-12 flex flex-col items-center justify-center gap-1.5 text-center px-4">
+                            <ImageIcon className="w-8 h-8 text-gray-300" />
+                            <p className="text-xs font-bold text-gray-600 mt-1">Upload Cover Image</p>
+                            <p className="text-[10px] text-gray-400">Drag &amp; drop or browse</p>
+                            <p className="text-[9px] text-gray-300 uppercase tracking-wider">PNG · JPG · WEBP</p>
+                          </div>
+                        )}
+                      </div>
+                      <input id="pa-cover-input" type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => handleImageFileChange(e, 'cover')} />
+                      <input type="text" value={pImage} onChange={(e) => setPImage(e.target.value)} placeholder="…or paste an image URL" className="w-full px-3 py-2 mt-2 text-[11px]" />
                     </div>
 
-                    <div className="space-y-1.5">
-                      <span className="font-bold text-gray-700 block">Upload Gallery Images (Multi-select)</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        disabled={uploadingImg}
-                        onChange={(e) => handleImageFileChange(e, 'gallery')}
-                        className="w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#1A1A1A] file:text-white hover:file:bg-[#C5A880] cursor-pointer disabled:opacity-50"
-                      />
-                      {uploadingImg && (
-                        <div className="p-2 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-amber-800 text-[11px] font-bold">
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#C5A880]" />
-                          <span>Uploading gallery images...</span>
+                    <div className="lg:col-span-3">
+                      <label className="block mb-1.5">Gallery Images</label>
+                      <label
+                        htmlFor="pa-gallery-input"
+                        className="flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-gray-200 hover:border-[#C5A880]/60 bg-[#FBFAF7] py-6 cursor-pointer transition-colors"
+                      >
+                        <Upload className="w-4 h-4 text-gray-400" />
+                        <span className="text-xs font-semibold text-gray-600">Add photos</span>
+                        <span className="text-[10px] text-gray-300 uppercase hidden sm:inline">JPG · PNG · WEBP</span>
+                      </label>
+                      <input id="pa-gallery-input" type="file" accept="image/png,image/jpeg,image/webp" multiple className="hidden" onChange={(e) => handleImageFileChange(e, 'gallery')} />
+
+                      {pGalleryImages.length > 0 ? (
+                        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 mt-3">
+                          {pGalleryImages.map((imgUrl, idx) => (
+                            <div key={idx} className="relative rounded-xl overflow-hidden border border-gray-100 bg-gray-50">
+                              <img src={imgUrl} alt={'Gallery ' + (idx + 1)} className="aspect-square w-full object-cover" />
+                              <div className="absolute inset-x-0 bottom-0 flex justify-between px-1 py-1 bg-white/85 backdrop-blur-sm">
+                                <button type="button" onClick={() => moveGalleryImage(idx, -1)} disabled={idx === 0}
+                                  className="p-0.5 px-1 text-gray-500 hover:text-gray-900 disabled:opacity-25 text-[10px]">◀</button>
+                                <button type="button" onClick={() => removeGalleryImage(idx)}
+                                  className="p-0.5 px-1 text-red-400 hover:text-red-600 text-[10px]" title="Remove">✕</button>
+                                <button type="button" onClick={() => moveGalleryImage(idx, 1)} disabled={idx === pGalleryImages.length - 1}
+                                  className="p-0.5 px-1 text-gray-500 hover:text-gray-900 disabled:opacity-25 text-[10px]">▶</button>
+                              </div>
+                            </div>
+                          ))}
                         </div>
+                      ) : (
+                        <p className="text-[10px] text-gray-300 mt-2">No gallery photos yet — arrows let you reorder after upload.</p>
                       )}
-                      <p className="text-[10px] text-gray-400 italic">Select multiple images at once to build product gallery.</p>
-                      
-                      {/* Gallery Thumbnails List */}
-                      <div className="flex flex-wrap gap-2 pt-2">
-                        {pGalleryImages.map((img, idx) => (
-                          <div key={idx} className="relative group">
-                            <img src={img} alt="Thumbnail" className="w-14 h-16 object-cover rounded-lg border" />
-                            <button
-                              type="button"
-                              onClick={() => setPGalleryImages(pGalleryImages.filter((_, i) => i !== idx))}
-                              className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full p-0.5 opacity-80 hover:opacity-100"
-                            >
-                              <X className="w-3 h-3" />
+                    </div>
+                  </div>
+                </section>
+
+                {/* 03 PRODUCT VARIANTS */}
+                <section className="space-y-4">
+                  <div className="adm-section-head">
+                    <span className="adm-kicker">03</span>
+                    <strong>Product Variants</strong>
+                    {hasVariants && (
+                      <span className="ml-auto text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                        {variantCombos.length} combinations
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* COLOR dimension */}
+                    <div className="rounded-2xl bg-[#FBFAF7] p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-gray-800">Color</span>
+                        <span className="text-[10px] text-gray-400">{pColors.length} selected</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {PA_COLOR_PRESETS.map((c) => {
+                          const on = pColors.some((x) => x.name === c.name);
+                          return (
+                            <button key={c.name} type="button" onClick={() => toggleVariantColor(c)}
+                              className={'flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-full border text-[11px] font-semibold transition-all ' +
+                                (on ? 'bg-[#1A1A1A] text-white border-[#1A1A1A]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400')}>
+                              <span className="w-4 h-4 rounded-full border border-black/10" style={{ backgroundColor: c.hex }} />
+                              {c.name}
                             </button>
-                          </div>
+                          );
+                        })}
+                        {pColors.filter((c) => !PA_COLOR_PRESETS.some((p) => p.name === c.name)).map((c) => (
+                          <button key={c.name} type="button" onClick={() => toggleVariantColor(c)}
+                            className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-full border text-[11px] font-semibold bg-[#C5A880]/15 text-[#A88B64] border-[#C5A880]/40">
+                            <span className="w-4 h-4 rounded-full border border-black/10" style={{ backgroundColor: c.hex }} />
+                            {c.name} ✕
+                          </button>
                         ))}
                       </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. DYNAMIC COLOR SELECTION WITH PRESET SUGGESTIONS */}
-                <div className="p-4 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA] space-y-3">
-                  <div className="flex justify-between items-center border-b border-[#E7E2DA] pb-2">
-                    <label className="font-bold text-xs text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
-                      <Palette className="w-4 h-4 text-[#C5A880]" /> 3. Product Color Palette
-                    </label>
-                    <button
-                      type="button"
-                      onClick={handleAddColor}
-                      className="px-3 py-1 bg-[#1A1A1A] text-white rounded-xl text-[11px] font-bold hover:bg-[#C5A880] flex items-center gap-1 transition-colors"
-                    >
-                      <Plus className="w-3.3 h-3.3" /> Add Custom Color
-                    </button>
-                  </div>
-
-                  {/* Preset Pills */}
-                  <div className="space-y-1.5">
-                    <span className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block">
-                      Quick 1-Tap Color Presets:
-                    </span>
-                    <div className="flex flex-wrap gap-2">
-                      {[
-                        { name: 'Pure White', hex: '#FFFFFF' },
-                        { name: 'Ivory Cream', hex: '#FAF8F5' },
-                        { name: 'Habesha Gold', hex: '#C5A880' },
-                        { name: 'Royal Gold', hex: '#D4AF37' },
-                        { name: 'Emerald Green', hex: '#1B4D3E' },
-                        { name: 'Deep Burgundy', hex: '#800020' },
-                        { name: 'Royal Navy', hex: '#002366' },
-                        { name: 'Charcoal Black', hex: '#1A1A1A' },
-                      ].map((preset) => (
-                        <button
-                          key={preset.name}
-                          type="button"
-                          onClick={() => handleAddPresetColor(preset)}
-                          className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-[#E7E2DA] rounded-full text-[11px] font-bold hover:border-[#C5A880] hover:scale-105 transition-all shadow-2xs"
-                        >
-                          <span className="w-3.5 h-3.5 rounded-full border border-black/20" style={{ backgroundColor: preset.hex }} />
-                          <span className="text-gray-800">{preset.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Active Selected Colors */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                    {pColors.map((col, idx) => (
-                      <div key={idx} className="p-2.5 bg-white rounded-xl border flex items-center justify-between gap-2 shadow-2xs">
-                        <div className="flex items-center gap-2 flex-1">
-                          <input
-                            type="color"
-                            value={col.hex}
-                            onChange={(e) => handleColorChange(idx, 'hex', e.target.value)}
-                            className="w-7 h-7 rounded-lg cursor-pointer border-0 p-0"
-                          />
-                          <input
-                            type="text"
-                            value={col.name}
-                            onChange={(e) => handleColorChange(idx, 'name', e.target.value)}
-                            placeholder="Color Name (e.g. Pure White)"
-                            className="w-full px-2 py-1 border rounded-lg text-xs font-bold"
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveColor(idx)}
-                          className="text-gray-400 hover:text-red-600 p-1"
-                        >
-                          <Trash2 className="w-4 h-4" />
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <input type="color" value={customColorHex} onChange={(e) => setCustomColorHex(e.target.value)}
+                          className="w-8 h-8 rounded-lg cursor-pointer border border-gray-200 bg-white shrink-0" title="Pick custom color" />
+                        <input type="text" value={customColorName} onChange={(e) => setCustomColorName(e.target.value)}
+                          placeholder="Custom color name" className="flex-1 min-w-[120px] px-3 py-1.5 text-xs font-medium" />
+                        <button type="button" onClick={addCustomVariantColor}
+                          className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:border-[#C5A880] text-[11px] font-bold text-gray-700">
+                          + Add
                         </button>
                       </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 4. SIZES SELECTION */}
-                <div className="p-4 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA] space-y-2">
-                  <label className="font-bold text-xs text-gray-900 uppercase tracking-wider block border-b border-[#E7E2DA] pb-2">
-                    4. Available Sizes
-                  </label>
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {['ONE SIZE', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'Custom'].map((sz) => {
-                      const selected = pSizes.includes(sz);
-                      return (
-                        <button
-                          type="button"
-                          key={sz}
-                          onClick={() => handleToggleSize(sz)}
-                          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                            selected
-                              ? 'bg-[#1A1A1A] text-white shadow-xs'
-                              : 'bg-white text-gray-700 border border-[#E7E2DA] hover:border-black'
-                          }`}
-                        >
-                          {sz}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 5. DESCRIPTION & SPECIFICATIONS */}
-                <div className="space-y-4">
-                  <div>
-                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                      5. Product Description Overview *
-                    </label>
-                    <textarea
-                      rows={2}
-                      required
-                      value={pDesc}
-                      onChange={(e) => setPDesc(e.target.value)}
-                      placeholder="Traditional Ethiopian handwoven cotton Netela scarf with gold and red woven borders (Tibet). Light, elegant, and versatile."
-                      className="w-full px-3.5 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#C5A880]"
-                    />
-                  </div>
-
-                  {/* NOTE: Material & Occasion are now fully dynamic attributes (section 6).
-                      Legacy columns auto-derive from the selected Fabric/Occasion attribute. */}
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                        Fabric & Care Details
-                      </label>
-                      <textarea
-                        rows={2}
-                        value={pFabricCare}
-                        onChange={(e) => setPFabricCare(e.target.value)}
-                        placeholder="100% Ethiopian Cotton Shemma. Dry clean or hand wash cold."
-                        className="w-full px-3 py-2 border rounded-xl"
-                      />
                     </div>
 
-                    <div>
-                      <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                        Delivery & Shipping Info
-                      </label>
-                      <textarea
-                        rows={2}
-                        value={pDeliveryInfo}
-                        onChange={(e) => setPDeliveryInfo(e.target.value)}
-                        placeholder="Fast express delivery in Addis Ababa within 24-48 hours."
-                        className="w-full px-3 py-2 border rounded-xl"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex gap-6 pt-2">
-                    <label className="flex items-center gap-2 cursor-pointer font-bold">
-                      <input
-                        type="checkbox"
-                        checked={pIsNew}
-                        onChange={(e) => setPIsNew(e.target.checked)}
-                        className="rounded text-[#1A1A1A]"
-                      />
-                      <span>Mark as NEW ARRIVAL</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 cursor-pointer font-bold">
-                      <input
-                        type="checkbox"
-                        checked={pIsSale}
-                        onChange={(e) => setPIsSale(e.target.checked)}
-                        className="rounded text-red-600"
-                      />
-                      <span>Mark as ON SALE</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* 6. DYNAMIC METADATA ATTRIBUTES (SCHEMA MANAGER DRIVEN) */}
-                {propertyDefinitions.filter(isDefActive).length > 0 && (
-                  <div className="p-4 bg-amber-50/40 rounded-2xl border-l-4 border-l-[#C5A880] space-y-4">
-                    <div className="flex items-center justify-between pb-1">
-                      <span className="adm-kicker">06 · Dynamic Attributes</span>
-                      <span className="text-[10px] text-gray-400 font-medium">Auto-generates storefront filters</span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {propertyDefinitions
-                        .filter(isDefActive)
-                        .map((pdef) => {
-                          const val = pAttributes[pdef.slug] !== undefined ? pAttributes[pdef.slug] : '';
+                    {/* SIZE dimension */}
+                    <div className="rounded-2xl bg-[#FBFAF7] p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-gray-800">Size</span>
+                        <span className="text-[10px] text-gray-400">{pSizes.length} selected</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {PA_SIZE_PRESETS.map((s) => {
+                          const on = pSizes.includes(s);
                           return (
-                            <div key={pdef.id} className="space-y-1 bg-white p-3 rounded-xl border border-[#E7E2DA]">
-                              <div className="flex items-center justify-between">
-                                <label className="font-bold text-xs text-[#1A1A1A]">
-                                  {pdef.name} {pdef.required && <span className="text-red-500">*</span>}
-                                </label>
-                                {pdef.unit && <span className="text-[10px] text-gray-400 font-mono">Unit: {pdef.unit}</span>}
-                              </div>
+                            <button key={s} type="button" onClick={() => toggleVariantSize(s)}
+                              className={'px-3 py-1 rounded-lg border text-[11px] font-bold transition-all ' +
+                                (on ? 'bg-[#1A1A1A] text-white border-[#1A1A1A]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400')}>
+                              {s}
+                            </button>
+                          );
+                        })}
+                        {pSizes.filter((s) => !PA_SIZE_PRESETS.includes(s)).map((s) => (
+                          <button key={s} type="button" onClick={() => toggleVariantSize(s)}
+                            className="px-3 py-1 rounded-lg border text-[11px] font-bold bg-[#C5A880]/15 text-[#A88B64] border-[#C5A880]/40">
+                            {s} ✕
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 pt-1">
+                        <input type="text" value={customSizeValue} onChange={(e) => setCustomSizeValue(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomVariantSize(); } }}
+                          placeholder='Custom size (e.g. "42", "Kids 8Y")' className="flex-1 px-3 py-1.5 text-xs font-medium" />
+                        <button type="button" onClick={addCustomVariantSize}
+                          className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:border-[#C5A880] text-[11px] font-bold text-gray-700">
+                          + Add
+                        </button>
+                      </div>
+                    </div>
+                  </div>
 
-                              {/* SELECT / SINGLE CHOICE */}
+                  {/* Variant matrix — only when both dimensions are active */}
+                  {hasVariants ? (
+                    <div className="rounded-2xl border border-gray-100 overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[560px] text-xs">
+                          <thead>
+                            <tr className="text-left text-[10px] uppercase tracking-wider text-gray-400 bg-[#FAFAF8] border-b border-gray-100">
+                              <th className="px-4 py-2.5 font-semibold">Variant</th>
+                              <th className="px-4 py-2.5 font-semibold">Price (ETB)</th>
+                              <th className="px-4 py-2.5 font-semibold">Stock</th>
+                              <th className="px-4 py-2.5 font-semibold">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-50">
+                            {activeVariantRows.map((row) => (
+                              <tr key={row.key} className="hover:bg-[#FBF9F5]/60 transition-colors">
+                                <td className="px-4 py-2.5">
+                                  <span className="inline-flex items-center gap-1.5 font-semibold text-gray-800">
+                                    <span className="w-3 h-3 rounded-full border border-black/10" style={{ backgroundColor: row.color.hex }} />
+                                    {row.color.name} / {row.size}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2.5">
+                                  <input type="number" min={0} value={row.cell.price}
+                                    onChange={(e) => setCell(row.key, { price: e.target.value })}
+                                    placeholder={pPrice || '—'} className="w-24 px-2 py-1.5 text-right" />
+                                </td>
+                                <td className="px-4 py-2.5">
+                                  <input type="number" min={0} value={row.cell.stock}
+                                    onChange={(e) => setCell(row.key, { stock: e.target.value })}
+                                    placeholder="—" className="w-20 px-2 py-1.5 text-right" />
+                                </td>
+                                <td className="px-4 py-2.5">
+                                  <button type="button"
+                                    onClick={() => setCell(row.key, { inStock: !row.cell.inStock })}
+                                    className={'inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold ' +
+                                      (row.cell.inStock !== false ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600')}>
+                                    <span className={'w-1.5 h-1.5 rounded-full ' + (row.cell.inStock !== false ? 'bg-emerald-500' : 'bg-red-500')} />
+                                    {row.cell.inStock !== false ? 'In Stock' : 'Out of Stock'}
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="px-4 py-2 bg-[#FAFAF8] border-t border-gray-100 flex items-start gap-2">
+                        <Sparkles className="w-3.5 h-3.5 text-[#C5A880] shrink-0 mt-0.5" />
+                        <p className="text-[10px] text-gray-500 leading-relaxed">
+                          On save: lowest variant price becomes the catalog price · stock quantities are summed · availability follows any in-stock row.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-gray-200 p-6 text-center">
+                      <Palette className="w-6 h-6 text-gray-300 mx-auto mb-1.5" />
+                      <p className="text-xs text-gray-500">Pick at least one color AND one size above to generate the variant matrix.</p>
+                      <p className="text-[10px] text-gray-400 mt-1">No variants? Set a single price &amp; stock in the next section.</p>
+                    </div>
+                  )}
+                </section>
+
+                {/* 04 PRICING & INVENTORY */}
+                <section className="space-y-4">
+                  <div className="adm-section-head">
+                    <span className="adm-kicker">04</span>
+                    <strong>Pricing &amp; Inventory</strong>
+                    {hasVariants && (
+                      <span className="ml-auto text-[10px] text-gray-400">managed per variant in 03</span>
+                    )}
+                  </div>
+
+                  {hasVariants ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="adm-card p-4 text-center">
+                        <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Combinations</p>
+                        <p className="text-xl font-bold text-[#1A1A1A] mt-1">{variantCombos.length}</p>
+                      </div>
+                      <div className="adm-card p-4 text-center">
+                        <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Catalog Price</p>
+                        <p className="text-xl font-bold text-[#1A1A1A] mt-1">
+                          ETB {(matrixPrices.length ? Math.min(...matrixPrices) : Number(pPrice) || 0).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="adm-card p-4 text-center">
+                        <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Total Stock</p>
+                        <p className="text-xl font-bold text-[#1A1A1A] mt-1">
+                          {matrixStocks.length ? matrixStocks.reduce((a, b) => a + b, 0) : 0}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block mb-1.5">Selling Price (ETB) *</label>
+                        <input type="number" min={0} required value={pPrice} onChange={(e) => setPPrice(e.target.value)}
+                          placeholder="2500" className="w-full px-3.5 py-2.5 font-bold text-sm" />
+                      </div>
+                      <div>
+                        <label className="block mb-1.5">Original Price</label>
+                        <input type="number" min={0} value={pOrigPrice} onChange={(e) => setPOrigPrice(e.target.value)}
+                          placeholder="Optional — sale badge" className="w-full px-3.5 py-2.5 text-gray-600" />
+                      </div>
+                      <div>
+                        <label className="block mb-1.5">Stock Quantity</label>
+                        <input type="number" min={0} value={pStock} onChange={(e) => setPStock(e.target.value)}
+                          placeholder="15" className="w-full px-3.5 py-2.5 font-semibold" />
+                      </div>
+                      <div>
+                        <label className="block mb-1.5">Availability</label>
+                        <select value={pInStock ? 'true' : 'false'} onChange={(e) => setPInStock(e.target.value === 'true')}
+                          className="w-full px-3.5 py-2.5 font-semibold cursor-pointer">
+                          <option value="true">● In Stock</option>
+                          <option value="false">○ Out of Stock</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </section>
+
+                {/* 05 PRODUCT DESCRIPTION */}
+                <section className="space-y-4">
+                  <div className="adm-section-head">
+                    <span className="adm-kicker">05</span>
+                    <strong>Product Description</strong>
+                  </div>
+
+                  <div>
+                    <label className="block mb-1.5">Product Description *</label>
+                    <textarea rows={4} required value={pDesc} onChange={(e) => setPDesc(e.target.value)}
+                      placeholder="Describe the fabric, craftsmanship, fit and what makes this piece special…"
+                      className="w-full px-3.5 py-2.5 leading-relaxed" />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block mb-1.5">Fabric &amp; Care Details</label>
+                      <textarea rows={3} value={pFabricCare} onChange={(e) => setPFabricCare(e.target.value)}
+                        placeholder="100% Ethiopian cotton. Hand wash cold or dry clean…" className="w-full px-3.5 py-2.5" />
+                    </div>
+                    <div>
+                      <label className="block mb-1.5">Delivery &amp; Shipping Information</label>
+                      <textarea rows={3} value={pDeliveryInfo} onChange={(e) => setPDeliveryInfo(e.target.value)}
+                        placeholder="Free delivery in Addis Ababa over ETB 2,500. Dispatched within 24–48h…" className="w-full px-3.5 py-2.5" />
+                    </div>
+                  </div>
+                </section>
+
+                {/* 06 STOREFRONT SETTINGS */}
+                <section className="space-y-3">
+                  <div className="adm-section-head">
+                    <span className="adm-kicker">06</span>
+                    <strong>Storefront Settings</strong>
+                  </div>
+
+                  <div className="adm-card px-5 py-2 grid grid-cols-1 sm:grid-cols-3 sm:divide-x divide-gray-100">
+                    <div className="px-1 py-1 sm:px-4">
+                      <PaToggle checked={pIsNew} onChange={setPIsNew} label="New Arrival" hint="Shows the NEW badge" />
+                    </div>
+                    <div className="px-1 py-1 border-t sm:border-t-0 border-gray-100 sm:px-4">
+                      <PaToggle checked={pIsSale} onChange={setPIsSale} label="On Sale" hint="Enable sale styling" />
+                    </div>
+                    <div className="px-1 py-1 border-t sm:border-t-0 border-gray-100 sm:px-4">
+                      <PaToggle checked={pInStock} onChange={setPInStock} label="Available for Sale" hint="Out-of-stock items appear greyed out" />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-gray-400 -mt-1">Featured products use the “FEATURED” badge — toggle below in Dynamic Attributes or via badge text.</p>
+                </section>
+
+                {/* 07 DYNAMIC ATTRIBUTES */}
+                <section className="space-y-4">
+                  <div className="adm-section-head">
+                    <span className="adm-kicker">07</span>
+                    <strong>Dynamic Attributes</strong>
+                    {propertyDefinitions.filter(isDefActive).length > 0 && (
+                      <span className="ml-auto text-[10px] text-gray-400">
+                        {propertyDefinitions.filter(isDefActive).filter((d) => !['sizes', 'colors', 'color-theme'].includes(d.slug)).length} configured · admin-managed
+                      </span>
+                    )}
+                  </div>
+
+                  {(() => {
+                    const dynamicDefs = propertyDefinitions
+                      .filter(isDefActive)
+                      .filter((d) => !['sizes', 'colors', 'color-theme'].includes(d.slug));
+
+                    if (dynamicDefs.length === 0) {
+                      return (
+                        <div className="rounded-2xl border border-dashed border-gray-200 p-6 text-center">
+                          <SlidersHorizontal className="w-6 h-6 text-gray-300 mx-auto mb-1.5" />
+                          <p className="text-xs text-gray-500">No attributes are bound to this category yet.</p>
+                          <button type="button" onClick={() => setActiveTab('properties')}
+                            className="text-[11px] font-bold text-[#C5A880] hover:underline mt-1">
+                            Create attributes in Properties Studio →
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {dynamicDefs.map((pdef) => {
+                          const val = pAttributes[pdef.slug] !== undefined ? pAttributes[pdef.slug] : '';
+                          const attrVisible = attrVisibility[pdef.slug] !== false;
+                          return (
+                            <div key={pdef.id} className="space-y-1.5">
+                              <div className="flex items-center justify-between gap-3">
+                                <label className="block">
+                                  {pdef.name}
+                                  {pdef.required && <span className="text-red-400 ml-0.5">*</span>}
+                                  {pdef.unit && <span className="text-gray-300 font-normal ml-1">({pdef.unit})</span>}
+                                </label>
+                                <PaToggle
+                                  checked={attrVisible}
+                                  onChange={(v) => setAttrVisibility((m) => ({ ...m, [pdef.slug]: v }))}
+                                  label={attrVisible ? 'Active' : 'Hidden'}
+                                />
+                              </div>
+                              {attrVisible && (
+                                <>
+
                               {pdef.type === 'select' && (
                                 <select
-                                  value={val}
+                                  value={String(val)}
                                   onChange={(e) => setPAttributes({ ...pAttributes, [pdef.slug]: e.target.value })}
-                                  className="w-full px-3 py-2 border rounded-xl bg-[#FAF8F5] text-xs font-bold text-[#1A1A1A]"
+                                  className="w-full px-3 py-2.5 font-medium cursor-pointer"
                                 >
                                   <option value="">-- Choose {pdef.name} --</option>
                                   {(pdef.options || []).map((opt) => (
-                                    <option key={opt.id} value={opt.value}>
-                                      {opt.name}
-                                    </option>
+                                    <option key={opt.id} value={opt.value}>{opt.name}</option>
                                   ))}
                                 </select>
                               )}
 
-                              {/* MULTI_SELECT CHOICE */}
                               {pdef.type === 'multi_select' && (
-                                <div className="flex flex-wrap gap-1.5 pt-1">
+                                <div className="flex flex-wrap gap-1.5 pt-0.5">
                                   {(pdef.options || []).map((opt) => {
-                                    const selectedList: string[] = Array.isArray(val) ? val : [];
-                                    const isSel = selectedList.includes(opt.value);
+                                    const list: string[] = Array.isArray(val) ? val : [];
+                                    const on = list.includes(opt.value);
                                     return (
-                                      <button
-                                        type="button"
-                                        key={opt.id}
-                                        onClick={() => {
-                                          const next = isSel
-                                            ? selectedList.filter((s) => s !== opt.value)
-                                            : [...selectedList, opt.value];
-                                          setPAttributes({ ...pAttributes, [pdef.slug]: next });
-                                        }}
-                                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all ${
-                                          isSel
-                                            ? 'bg-[#1A1A1A] text-white border-[#1A1A1A]'
-                                            : 'bg-white text-gray-700 border-[#E7E2DA] hover:border-black'
-                                        }`}
-                                      >
-                                        {opt.name}
+                                      <button key={opt.id} type="button"
+                                        onClick={() => setPAttributes({
+                                          ...pAttributes,
+                                          [pdef.slug]: on ? list.filter((v) => v !== opt.value) : [...list, opt.value],
+                                        })}
+                                        className={'px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ' +
+                                          (on ? 'bg-[#1A1A1A] text-white border-[#1A1A1A]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400')}>
+                                        {on ? '✓ ' : ''}{opt.name}
                                       </button>
                                     );
                                   })}
                                 </div>
                               )}
 
-                              {/* COLOR TYPE */}
                               {pdef.type === 'color' && (
-                                <div className="flex flex-wrap gap-1.5 pt-1">
+                                <div className="flex flex-wrap gap-2 pt-0.5">
                                   {(pdef.options || []).map((opt) => {
-                                    const isSel = val === opt.value;
+                                    const on = val === opt.value;
                                     return (
-                                      <button
-                                        type="button"
-                                        key={opt.id}
-                                        onClick={() => setPAttributes({ ...pAttributes, [pdef.slug]: opt.value })}
-                                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
-                                          isSel ? 'bg-[#1A1A1A] text-white border-black ring-2 ring-[#C5A880]' : 'bg-white text-gray-800 border-[#E7E2DA]'
-                                        }`}
-                                      >
-                                        <span className="w-3.5 h-3.5 rounded-full border border-black/20" style={{ backgroundColor: opt.hex || '#1A1A1A' }} />
-                                        <span>{opt.name}</span>
+                                      <button key={opt.id} type="button" title={opt.name}
+                                        onClick={() => setPAttributes({ ...pAttributes, [pdef.slug]: on ? '' : opt.value })}
+                                        className={'w-7 h-7 rounded-full border border-black/10 flex items-center justify-center transition-transform ' +
+                                          (on ? 'ring-2 ring-[#C5A880] scale-110' : 'hover:scale-105')}
+                                        style={{ backgroundColor: opt.hex || '#ccc' }}>
+                                        {on && <Check className="w-3.5 h-3.5 text-white drop-shadow" />}
                                       </button>
                                     );
                                   })}
                                 </div>
                               )}
 
-                              {/* NUMBER TYPE */}
-                              {pdef.type === 'number' && (
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="number"
-                                    value={val}
-                                    onChange={(e) => setPAttributes({ ...pAttributes, [pdef.slug]: Number(e.target.value) })}
-                                    placeholder="Enter numeric value"
-                                    className="w-full px-3 py-2 border rounded-xl text-xs font-bold"
-                                  />
-                                  {pdef.unit && <span className="text-xs font-bold text-gray-500">{pdef.unit}</span>}
+                              {(pdef.type === 'number' || pdef.type === 'range') && (
+                                <div>
+                                  {pdef.type === 'range' ? (
+                                    <div className="flex items-center gap-3 pt-1.5">
+                                      <input type="range" min={0} max={100} value={Number(val) || 0}
+                                        onChange={(e) => setPAttributes({ ...pAttributes, [pdef.slug]: Number(e.target.value) })}
+                                        className="flex-1 accent-[#C5A880]" />
+                                      <span className="text-xs font-bold text-gray-700 w-12 text-right">
+                                        {Number(val) || 0}{pdef.unit}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <input type="number" min={0} value={String(val)}
+                                      onChange={(e) => setPAttributes({ ...pAttributes, [pdef.slug]: e.target.value === '' ? '' : Number(e.target.value) })}
+                                      placeholder={'Enter ' + pdef.name.toLowerCase() + '…'} className="w-full px-3 py-2.5 font-semibold" />
+                                  )}
                                 </div>
                               )}
 
-                              {/* BOOLEAN TOGGLE */}
                               {pdef.type === 'boolean' && (
-                                <label className="flex items-center gap-2 cursor-pointer pt-1">
-                                  <input
-                                    type="checkbox"
-                                    checked={Boolean(val)}
-                                    onChange={(e) => setPAttributes({ ...pAttributes, [pdef.slug]: e.target.checked })}
-                                    className="rounded text-[#1A1A1A]"
-                                  />
-                                  <span className="text-xs font-bold text-gray-700">Enable / Yes</span>
-                                </label>
+                                <div className="pt-1">
+                                  <PaToggle checked={Boolean(val)} onChange={(v) => setPAttributes({ ...pAttributes, [pdef.slug]: v })} label="Enabled" />
+                                </div>
                               )}
 
-                              {/* TEXT INPUT */}
                               {pdef.type === 'text' && (
-                                <input
-                                  type="text"
-                                  value={val}
+                                <input type="text" value={String(val)}
                                   onChange={(e) => setPAttributes({ ...pAttributes, [pdef.slug]: e.target.value })}
-                                  placeholder={`Enter ${pdef.name}...`}
-                                  className="w-full px-3 py-2 border rounded-xl text-xs"
-                                />
+                                  placeholder={'Enter ' + pdef.name.toLowerCase() + '…'} className="w-full px-3 py-2.5 font-medium" />
                               )}
-                            </div>
+                              </>
+                            )}
+                          </div>
                           );
                         })}
-                    </div>
-                  </div>
-                )}
+                      </div>
+                    );
+                  })()}
+                </section>
 
-                {/* MODAL ACTIONS BAR */}
-                <div className="sticky bottom-0 bg-white pt-4 pb-2 flex justify-end gap-3 border-t border-[#E7E2DA] z-10">
+                {/* STICKY ACTION BAR */}
+                <div className="sticky bottom-0 -mx-5 sm:-mx-8 px-5 sm:px-8 py-3.5 bg-white/95 backdrop-blur border-t border-gray-100 flex flex-col-reverse sm:flex-row justify-end items-stretch sm:items-center gap-2 z-10">
                   <button
                     type="button"
                     onClick={() => setShowProductModal(false)}
-                    className="px-5 py-2.5 border rounded-xl font-bold hover:bg-gray-100 transition-colors"
+                    className="px-4 py-2.5 rounded-xl text-xs font-bold text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-colors order-last sm:order-first"
                   >
                     Cancel
                   </button>
                   <button
-                    type="submit"
-                    className="px-7 py-2.5 bg-[#1A1A1A] text-white font-bold rounded-xl hover:bg-[#C5A880] transition-colors shadow-md flex items-center gap-2"
+                    type="button"
+                    disabled={loading}
+                    onClick={(e) => handleSaveProduct(e as unknown as React.FormEvent, true)}
+                    className="px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-700 hover:border-[#C5A880] disabled:opacity-50"
                   >
-                    {editingProductId ? 'Update Product Catalog Item' : 'Save New Product Item'}
+                    Save Draft
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-6 py-2.5 rounded-xl bg-[#1A1A1A] text-white text-xs font-bold hover:bg-[#C5A880] hover:text-black transition-colors shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {loading && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                    {editingProductId ? 'Update Product' : 'Create Product'}
                   </button>
                 </div>
               </form>
+
             </div>
           </div>
         )}
