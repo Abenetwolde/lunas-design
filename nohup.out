@@ -1,2 +1,4 @@
 bash: -c: line 1: unexpected EOF while looking for matching `"'
 bash: -c: line 3: syntax error: unexpected end of file
+bash: -c: line 1: unexpected EOF while looking for matching `"'
+bash: -c: line 3: syntax error: unexpected end of file

@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.9.1",
     "@supabase/supabase-js": "^2.112.3",
     "@types/pg": "^8.23.1",
     "@types/ws": "^8.18.1",
@@ -20,8 +21,10 @@
     "pg": "^8.23.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "react-hook-form": "^7.86.0",
     "tailwind-merge": "^3.6.0",
-    "ws": "^8.21.3"
+    "ws": "^8.21.3",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -72,17 +72,6 @@ import {
 } from 'lucide-react';
 
 /* ===== Product Atelier constants ===== */
-const PA_COLOR_PRESETS: ColorOption[] = [
-  { name: 'Pure White', hex: '#FAFAFA' },
-  { name: 'Ivory Cream', hex: '#FAF8F5' },
-  { name: 'Habesha Gold', hex: '#C5A880' },
-  { name: 'Royal Gold', hex: '#D4AF37' },
-  { name: 'Emerald Green', hex: '#1B4D3E' },
-  { name: 'Deep Burgundy', hex: '#800020' },
-  { name: 'Royal Navy', hex: '#002366' },
-  { name: 'Charcoal Black', hex: '#1A1A1A' },
-];
-const PA_SIZE_PRESETS = ['One Size', 'XS', 'S', 'M', 'L', 'XL', 'XXL'];
 
 const PaToggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string }> = ({ checked, onChange, label, hint }) => (
   <div className="flex items-center justify-between gap-3 py-1">
@@ -249,7 +238,9 @@ export default function AdminClient({
   const [customSizeValue, setCustomSizeValue] = useState('');
   const [dragOverCover, setDragOverCover] = useState(false);
   const [pFeatured, setPFeatured] = useState(false);
-  const [attrVisibility, setAttrVisibility] = useState<Record<string, boolean>>({}); // per-product attribute Active/Hidden
+  const [attrVisibility, setAttrVisibility] = useState<Record<string, boolean>>({});
+  const [dimVisibility, setDimVisibility] = useState<Record<string, boolean>>({}); // variant dims Active/Hidden
+  const [unsavedDraft, setUnsavedDraft] = useState(false);
   const [uploadingImg, setUploadingImg] = useState(false);
 
   // Dynamic Colors state in product form
@@ -370,6 +361,11 @@ export default function AdminClient({
   };
 
   // Product Create/Edit Handlers
+  const closeAtelier = () => {
+    if (!editingProductId && pName.trim()) setUnsavedDraft(true);
+    setShowProductModal(false);
+  };
+
   const handleOpenAddProduct = () => {
     setEditingProductId(null);
     setPName('');
@@ -510,6 +506,15 @@ export default function AdminClient({
     const cleanSizes = Array.from(new Set(pSizes.map((s) => String(s).trim()).filter(Boolean)));
     const cleanColors = pColors.filter((c) => c && c.name && c.hex);
 
+    // Variant selections → legacy color/size fields (from metadata dimensions)
+    const sizeDef = variantDefs.find((d) => isLegacySizeSlug(d.slug));
+    const colorDef = variantDefs.find((d) => isLegacyColorSlug(d.slug));
+    const finalSizes = sizeDef ? getDimValues(sizeDef) : cleanSizes;
+    const finalColorNames = colorDef ? getDimValues(colorDef) : cleanColors.map((c) => c.name);
+    const finalColors = finalColorNames.map(
+      (n) => pColors.find((c) => c.name === n) || cleanColors.find((c) => c.name === n) || { name: n, hex: '#cccccc' }
+    );
+
     // Roll the per-variant matrix up into the catalog's shared price/stock model
     const finalPrice = matrixPrices.length > 0 ? String(Math.min(...matrixPrices)) : pPrice;
     const finalStock = matrixStocks.length > 0 ? String(matrixStocks.reduce((a, b) => a + b, 0)) : pStock;
@@ -538,26 +543,33 @@ export default function AdminClient({
       isNew: isDraft ? false : pIsNew,
       isSale: isDraft ? false : hasOrigPrice,
       inStock: finalInStock,
-      sizes: cleanSizes,
-      colors: cleanColors,
+      sizes: finalSizes,
+      colors: finalColors,
       badgeText: pFeatured ? 'FEATURED' : undefined,
       attributes: savedAttributes,
     };
 
+    let ok = false;
     if (editingProductId) {
       const result = await updateProduct(editingProductId, prodData);
-      if (result.data) {
-        setProducts((prev) => prev.map((p) => (p.id === editingProductId ? { ...p, ...result.data } : p)));
-      }
-      showToast(isDraft ? 'Draft saved.' : `Updated product "${pName.trim()}"`);
+      ok = Boolean(result.data);
+      if (ok) setProducts((prev) => prev.map((p) => (p.id === editingProductId ? { ...p, ...result.data! } : p)));
+      if (ok) showToast(isDraft ? 'Draft saved.' : `Updated product "${pName.trim()}"`);
     } else {
       const result = await createProduct(prodData);
-      if (result.data) {
-        setProducts((prev) => [result.data!, ...prev]);
-      }
-      showToast(isDraft ? 'Draft saved to catalog.' : `Created product "${pName.trim()}"`);
+      ok = Boolean(result.data);
+      if (ok) setProducts((prev) => [result.data!, ...prev]);
+      if (ok) showToast(isDraft ? 'Draft saved to catalog.' : `Created product "${pName.trim()}"`);
     }
 
+    if (!ok) {
+      // Keep the modal open — every entered value stays intact for retry
+      showToast('Could not save the product. Your entries are preserved — please review and try again.');
+      setLoading(false);
+      return;
+    }
+
+    setUnsavedDraft(false);
     setShowProductModal(false);
     refreshAllData();
     setLoading(false);
@@ -866,39 +878,62 @@ export default function AdminClient({
     return (o.status || 'Telegram Pending') === orderStatusFilter;
   });
 
-  // ---- Variant combinations (Color × Size) ----
-  const variantCombos =
-    pColors.length > 0 && pSizes.length > 0
-      ? pColors.flatMap((c) => pSizes.map((s) => ({ color: c, size: s })))
-      : [];
+  // ---- Variant dimensions & combinations (METADATA-DRIVEN) ----
+  const dimIsOn = (def: PropertyDefinition) => dimVisibility[def.slug] !== false;
+  const variantDefs = propertyDefinitions
+    .filter(isDefActive)
+    .filter((d) => d.variant && dimIsOn(d))
+    .sort((a: PropertyDefinition, b: PropertyDefinition) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+
+  const isLegacySizeSlug = (s: string) => ['sizes', 'size'].includes(s);
+  const isLegacyColorSlug = (s: string) => ['colors', 'color-theme'].includes(s);
+
+  const getDimValues = (def: PropertyDefinition) => {
+    if (isLegacySizeSlug(def.slug)) return pSizes;
+    if (isLegacyColorSlug(def.slug)) return pColors.map((c) => c.name);
+    const v = pAttributes[def.slug];
+    return Array.isArray(v) ? v.map(String) : v ? [String(v)] : [];
+  };
+  const setDimValues = (def: PropertyDefinition, vals: string[]) => {
+    if (isLegacySizeSlug(def.slug)) { setPSizes(vals); return; }
+    if (isLegacyColorSlug(def.slug)) {
+      setPColors((prev) => {
+        const keep = prev.filter((c) => vals.includes(c.name));
+        const missing = vals.filter((n) => !keep.some((c) => c.name === n)).map((n) => ({ name: n, hex: '#cccccc' }));
+        return [...keep, ...missing];
+      });
+      return;
+    }
+    setPAttributes({ ...(pAttributes || {}), [def.slug]: vals });
+  };
+  const toggleDimValue = (def: PropertyDefinition, val: string) => {
+    const cur = getDimValues(def);
+    setDimValues(def, cur.includes(val) ? cur.filter((x) => x !== val) : [...cur, val]);
+  };
+  const addCustomDimensionValue = (def: PropertyDefinition, rawVal: string, hex?: string) => {
+    const v = def.type === 'color' ? rawVal.trim() : rawVal.trim().toUpperCase();
+    if (!v) return;
+    if (isLegacyColorSlug(def.slug)) {
+      setPColors((prev) => (prev.some((c) => c.name === v) ? prev : [...prev, { name: v, hex: hex || '#cccccc' }]));
+    }
+    if (!getDimValues(def).includes(v)) toggleDimValue(def, v);
+  };
+  const cartesianT = (arrays: string[][]) => arrays.reduce((acc: string[][], arr: string[]) => acc.flatMap((prefix) => arr.map((v) => [...prefix, v])), [[]]);
+  const dimSelections = variantDefs.map((def) => ({ def, values: getDimValues(def) }));
+  const activeDims = dimSelections.filter((d: { def: PropertyDefinition; values: string[] }) => d.values.length > 0);
+  const variantCombos = activeDims.length === 0 ? [] : cartesianT(activeDims.map((d) => d.values)).map((vals) => ({
+    key: vals.join(' / '),
+    label: vals.join(' / '),
+    values: vals,
+    priceKey: activeDims.map((d, idx) => (d.def.type === 'color' ? null : vals[idx])).filter(Boolean).join('|') || '__all__',
+  }));
   const hasVariants = variantCombos.length > 0;
   const getCell = (k: string) => variantMatrix[k] || { price: '', stock: '', inStock: true };
-  const setCell = (k: string, patch: Partial<{ price?: string; stock?: string; inStock: boolean }>) =>
-    setVariantMatrix((m) => ({ ...m, [k]: { ...getCell(k), ...patch } }));
-  const activeVariantRows = variantCombos.map(({ color, size }) => ({
-    key: color.name + '/' + size,
-    color,
-    size,
-    cell: getCell(color.name + '/' + size),
-  }));
+  const setCell = (k: string, patch: Partial<{ price?: string; stock?: string; inStock: boolean }>) => setVariantMatrix((m) => ({ ...m, [k]: { ...getCell(k), ...patch } }));
+  const activeVariantRows = variantCombos.map((c) => ({ ...c, cell: getCell(c.key) }));
   const matrixPrices = activeVariantRows.map((r) => parseFloat(r.cell.price || '')).filter((n) => !isNaN(n) && n > 0);
   const matrixStocks = activeVariantRows.map((r) => parseInt(r.cell.stock || '', 10)).filter((n) => !isNaN(n) && n >= 0);
 
-  const toggleVariantColor = (c: ColorOption) =>
-    setPColors((prev) => (prev.some((x) => x.name === c.name) ? prev.filter((x) => x.name !== c.name) : [...prev, c]));
-  const toggleVariantSize = (s: string) =>
-    setPSizes((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
-  const addCustomVariantColor = () => {
-    const name = customColorName.trim();
-    if (!name) return;
-    toggleVariantColor({ name, hex: customColorHex });
-    setCustomColorName('');
-  };
-  const addCustomVariantSize = () => {
-    const v = customSizeValue.trim().toUpperCase();
-    if (v && !pSizes.includes(v)) setPSizes((prev) => [...prev, v]);
-    setCustomSizeValue('');
-  };
   const moveGalleryImage = (idx: number, dir: -1 | 1) =>
     setPGalleryImages((arr) => {
       const a = [...arr];
@@ -908,6 +943,8 @@ export default function AdminClient({
       return a;
     });
   const removeGalleryImage = (idx: number) => setPGalleryImages((arr) => arr.filter((_, i) => i !== idx));
+
+  
 
   // Stats Calculations
   const totalRevenue = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
@@ -2438,7 +2475,7 @@ export default function AdminClient({
                 <div className="flex items-start gap-3">
                   <button
                     type="button"
-                    onClick={() => setShowProductModal(false)}
+                    onClick={closeAtelier}
                     className="mt-0.5 p-2 -ml-2 rounded-xl text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors shrink-0"
                     title="Back to Products"
                   >
@@ -2636,11 +2673,11 @@ export default function AdminClient({
                   </div>
                 </section>
 
-                {/* 03 PRODUCT VARIANTS */}
+                {/* 03 PRODUCT VARIANTS & PRICING */}
                 <section className="space-y-4">
                   <div className="adm-section-head">
                     <span className="adm-kicker">03</span>
-                    <strong>Product Variants</strong>
+                    <strong>Variants &amp; Pricing</strong>
                     {hasVariants && (
                       <span className="ml-auto text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
                         {variantCombos.length} combinations
@@ -2648,82 +2685,73 @@ export default function AdminClient({
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* COLOR dimension */}
-                    <div className="rounded-2xl bg-[#FBFAF7] p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-gray-800">Color</span>
-                        <span className="text-[10px] text-gray-400">{pColors.length} selected</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {PA_COLOR_PRESETS.map((c) => {
-                          const on = pColors.some((x) => x.name === c.name);
-                          return (
-                            <button key={c.name} type="button" onClick={() => toggleVariantColor(c)}
-                              className={'flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-full border text-[11px] font-semibold transition-all ' +
-                                (on ? 'bg-[#1A1A1A] text-white border-[#1A1A1A]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400')}>
-                              <span className="w-4 h-4 rounded-full border border-black/10" style={{ backgroundColor: c.hex }} />
-                              {c.name}
-                            </button>
-                          );
-                        })}
-                        {pColors.filter((c) => !PA_COLOR_PRESETS.some((p) => p.name === c.name)).map((c) => (
-                          <button key={c.name} type="button" onClick={() => toggleVariantColor(c)}
-                            className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-full border text-[11px] font-semibold bg-[#C5A880]/15 text-[#A88B64] border-[#C5A880]/40">
-                            <span className="w-4 h-4 rounded-full border border-black/10" style={{ backgroundColor: c.hex }} />
-                            {c.name} ✕
-                          </button>
-                        ))}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2 pt-1">
-                        <input type="color" value={customColorHex} onChange={(e) => setCustomColorHex(e.target.value)}
-                          className="w-8 h-8 rounded-lg cursor-pointer border border-gray-200 bg-white shrink-0" title="Pick custom color" />
-                        <input type="text" value={customColorName} onChange={(e) => setCustomColorName(e.target.value)}
-                          placeholder="Custom color name" className="flex-1 min-w-[120px] px-3 py-1.5 text-xs font-medium" />
-                        <button type="button" onClick={addCustomVariantColor}
-                          className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:border-[#C5A880] text-[11px] font-bold text-gray-700">
-                          + Add
-                        </button>
-                      </div>
+                  {variantDefs.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-gray-200 p-6 text-center">
+                      <SlidersHorizontal className="w-6 h-6 text-gray-300 mx-auto mb-1.5" />
+                      <p className="text-xs text-gray-500">No variant dimensions (e.g. Color, Size) are enabled for this category.</p>
+                      <button type="button" onClick={() => setActiveTab('properties')} className="text-[11px] font-bold text-[#C5A880] hover:underline mt-1">
+                        Configure variant attributes in Properties Studio →
+                      </button>
+                      <p className="text-[10px] text-gray-400 mt-2">Tip: enable the “Variant” flag on an attribute to surface it here.</p>
                     </div>
-
-                    {/* SIZE dimension */}
-                    <div className="rounded-2xl bg-[#FBFAF7] p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-gray-800">Size</span>
-                        <span className="text-[10px] text-gray-400">{pSizes.length} selected</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {PA_SIZE_PRESETS.map((s) => {
-                          const on = pSizes.includes(s);
-                          return (
-                            <button key={s} type="button" onClick={() => toggleVariantSize(s)}
-                              className={'px-3 py-1 rounded-lg border text-[11px] font-bold transition-all ' +
-                                (on ? 'bg-[#1A1A1A] text-white border-[#1A1A1A]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400')}>
-                              {s}
-                            </button>
-                          );
-                        })}
-                        {pSizes.filter((s) => !PA_SIZE_PRESETS.includes(s)).map((s) => (
-                          <button key={s} type="button" onClick={() => toggleVariantSize(s)}
-                            className="px-3 py-1 rounded-lg border text-[11px] font-bold bg-[#C5A880]/15 text-[#A88B64] border-[#C5A880]/40">
-                            {s} ✕
-                          </button>
-                        ))}
-                      </div>
-                      <div className="flex items-center gap-2 pt-1">
-                        <input type="text" value={customSizeValue} onChange={(e) => setCustomSizeValue(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomVariantSize(); } }}
-                          placeholder='Custom size (e.g. "42", "Kids 8Y")' className="flex-1 px-3 py-1.5 text-xs font-medium" />
-                        <button type="button" onClick={addCustomVariantSize}
-                          className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:border-[#C5A880] text-[11px] font-bold text-gray-700">
-                          + Add
-                        </button>
-                      </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {variantDefs.map((def) => {
+                        const values = getDimValues(def);
+                        const opts = def.options || [];
+                        const extras = values.filter((v) => !opts.some((o) => o.value === v));
+                        const isColorDim = def.type === 'color';
+                        return (
+                          <div key={def.id} className="rounded-2xl bg-[#FBFAF7] p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-gray-800">{def.name}</span>
+                              <span className="text-[10px] text-gray-400">{values.length} selected</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {opts.map((opt) => {
+                                const on = values.includes(opt.value);
+                                return (
+                                  <button key={opt.id} type="button" onClick={() => toggleDimValue(def, opt.value)}
+                                    className={'flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-full border text-[11px] font-semibold transition-all ' +
+                                      (on ? 'bg-[#1A1A1A] text-white border-[#1A1A1A]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400')}>
+                                    {(isColorDim || opt.hex) && <span className="w-4 h-4 rounded-full border border-black/10 shrink-0" style={{ backgroundColor: opt.hex || '#ccc' }} />}
+                                    {on ? '✓ ' : ''}{opt.name}
+                                  </button>
+                                );
+                              })}
+                              {extras.map((v) => (
+                                <button key={v} type="button" onClick={() => toggleDimValue(def, v)}
+                                  className="px-2 py-1 rounded-full border text-[11px] font-semibold bg-[#C5A880]/15 text-[#A88B64] border-[#C5A880]/40">
+                                  {v} ✕
+                                </button>
+                              ))}
+                            </div>
+                            {def.type === 'color' && (
+                              <div className="flex flex-wrap items-center gap-2 pt-1">
+                                <input type="color" value={customColorHex} onChange={(e) => setCustomColorHex(e.target.value)}
+                                  className="w-8 h-8 rounded-lg cursor-pointer border border-gray-200 bg-white shrink-0" title="Pick custom color" />
+                                <input type="text" value={customColorName} onChange={(e) => setCustomColorName(e.target.value)}
+                                  placeholder="Custom color name" className="flex-1 min-w-[120px] px-3 py-1.5 text-xs font-medium" />
+                                <button type="button" onClick={() => addCustomDimensionValue(def, customColorName, customColorHex)}
+                                  className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:border-[#C5A880] text-[11px] font-bold text-gray-700">+ Add</button>
+                              </div>
+                            )}
+                            {def.type !== 'color' && def.type !== 'boolean' && (
+                              <div className="flex items-center gap-2 pt-1">
+                                <input type="text" value={customSizeValue} onChange={(e) => setCustomSizeValue(e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomDimensionValue(def, customSizeValue); } }}
+                                  placeholder={'Custom ' + def.name.toLowerCase() + ' option'} className="flex-1 px-3 py-1.5 text-xs font-medium" />
+                                <button type="button" onClick={() => addCustomDimensionValue(def, customSizeValue)}
+                                  className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:border-[#C5A880] text-[11px] font-bold text-gray-700">+ Add</button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                  </div>
+                  )}
 
-                  {/* Variant matrix — only when both dimensions are active */}
+                  {/* Variant matrix — price shared across colors (grouped rows) */}
                   {hasVariants ? (
                     <div className="rounded-2xl border border-gray-100 overflow-hidden">
                       <div className="overflow-x-auto">
@@ -2737,55 +2765,92 @@ export default function AdminClient({
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-50">
-                            {activeVariantRows.map((row) => (
-                              <tr key={row.key} className="hover:bg-[#FBF9F5]/60 transition-colors">
-                                <td className="px-4 py-2.5">
-                                  <span className="inline-flex items-center gap-1.5 font-semibold text-gray-800">
-                                    <span className="w-3 h-3 rounded-full border border-black/10" style={{ backgroundColor: row.color.hex }} />
-                                    {row.color.name} / {row.size}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-2.5">
-                                  <input type="number" min={0} value={row.cell.price}
-                                    onChange={(e) => setCell(row.key, { price: e.target.value })}
-                                    placeholder={pPrice || '—'} className="w-24 px-2 py-1.5 text-right" />
-                                </td>
-                                <td className="px-4 py-2.5">
-                                  <input type="number" min={0} value={row.cell.stock}
-                                    onChange={(e) => setCell(row.key, { stock: e.target.value })}
-                                    placeholder="—" className="w-20 px-2 py-1.5 text-right" />
-                                </td>
-                                <td className="px-4 py-2.5">
-                                  <button type="button"
-                                    onClick={() => setCell(row.key, { inStock: !row.cell.inStock })}
-                                    className={'inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold ' +
-                                      (row.cell.inStock !== false ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600')}>
-                                    <span className={'w-1.5 h-1.5 rounded-full ' + (row.cell.inStock !== false ? 'bg-emerald-500' : 'bg-red-500')} />
-                                    {row.cell.inStock !== false ? 'In Stock' : 'Out of Stock'}
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
+                            {(() => {
+                              const groups = new Map();
+                              activeVariantRows.forEach((r) => {
+                                const arr = groups.get(r.priceKey) || [];
+                                arr.push(r);
+                                groups.set(r.priceKey, arr);
+                              });
+                              return Array.from(groups.values()).flatMap((rows: any[]) =>
+                                rows.map((r: any, ri: number) => (
+                                  <tr key={r.key} className="hover:bg-[#FBF9F5]/60 transition-colors">
+                                    <td className="px-4 py-2.5">
+                                      <span className="inline-flex items-center gap-1.5 font-semibold text-gray-800">{r.label}</span>
+                                    </td>
+                                    {ri === 0 && (
+                                      <td className="px-4 py-2.5 align-top" rowSpan={rows.length}>
+                                        <input type="number" min={0} value={rows[0].cell.price}
+                                          onChange={(e) => setCell(rows[0].key, { price: e.target.value })}
+                                          placeholder={pPrice || '—'} className="w-24 px-2 py-1.5 text-right" />
+                                      </td>
+                                    )}
+                                    <td className="px-4 py-2.5">
+                                      <input type="number" min={0} value={r.cell.stock}
+                                        onChange={(e) => setCell(r.key, { stock: e.target.value })}
+                                        placeholder="—" className="w-20 px-2 py-1.5 text-right" />
+                                    </td>
+                                    <td className="px-4 py-2.5">
+                                      <button type="button"
+                                        onClick={() => setCell(r.key, { inStock: !r.cell.inStock })}
+                                        className={'inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold ' +
+                                          (r.cell.inStock !== false ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600')}>
+                                        <span className={'w-1.5 h-1.5 rounded-full ' + (r.cell.inStock !== false ? 'bg-emerald-500' : 'bg-red-500')} />
+                                        {r.cell.inStock !== false ? 'In Stock' : 'Out of Stock'}
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))
+                              );
+                            })()}
                           </tbody>
                         </table>
                       </div>
-                      <div className="px-4 py-2 bg-[#FAFAF8] border-t border-gray-100 flex items-start gap-2">
+                      <div className="px-4 py-2 bg-[#FAFAF8] border-t border-gray-100 flex items-start gap-2 flex-wrap">
                         <Sparkles className="w-3.5 h-3.5 text-[#C5A880] shrink-0 mt-0.5" />
                         <p className="text-[10px] text-gray-500 leading-relaxed">
-                          On save: lowest variant price becomes the catalog price · stock quantities are summed · availability follows any in-stock row.
+                          Price is shared across colors — enter it once per size group. On save: lowest variant price becomes the catalog price · stock is summed.
                         </p>
                       </div>
                     </div>
                   ) : (
                     <div className="rounded-2xl border border-dashed border-gray-200 p-6 text-center">
                       <Palette className="w-6 h-6 text-gray-300 mx-auto mb-1.5" />
-                      <p className="text-xs text-gray-500">Pick at least one color AND one size above to generate the variant matrix.</p>
-                      <p className="text-[10px] text-gray-400 mt-1">No variants? Set a single price &amp; stock in the next section.</p>
+                      <p className="text-xs text-gray-500">Select at least one value in every dimension above to generate the variant matrix.</p>
+                    </div>
+                  )}
+
+                  {/* Simple product fallback — only when no variant dimensions exist */}
+                  {variantDefs.length === 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block mb-1.5">Selling Price (ETB) *</label>
+                        <input type="number" min={0} required value={pPrice} onChange={(e) => setPPrice(e.target.value)}
+                          placeholder="2500" className="w-full px-3.5 py-2.5 font-bold text-sm" />
+                      </div>
+                      <div>
+                        <label className="block mb-1.5">Original Price</label>
+                        <input type="number" min={0} value={pOrigPrice} onChange={(e) => setPOrigPrice(e.target.value)}
+                          placeholder="Optional — sale badge" className="w-full px-3.5 py-2.5 text-gray-600" />
+                      </div>
+                      <div>
+                        <label className="block mb-1.5">Stock Quantity</label>
+                        <input type="number" min={0} value={pStock} onChange={(e) => setPStock(e.target.value)}
+                          placeholder="15" className="w-full px-3.5 py-2.5 font-semibold" />
+                      </div>
+                      <div>
+                        <label className="block mb-1.5">Availability</label>
+                        <select value={pInStock ? 'true' : 'false'} onChange={(e) => setPInStock(e.target.value === 'true')}
+                          className="w-full px-3.5 py-2.5 font-semibold cursor-pointer">
+                          <option value="true">● In Stock</option>
+                          <option value="false">○ Out of Stock</option>
+                        </select>
+                      </div>
                     </div>
                   )}
                 </section>
 
-                {/* 04 PRICING & INVENTORY */}
+                {/* 04 PRODUCT DESCRIPTION */}
                 <section className="space-y-4">
                   <div className="adm-section-head">
                     <span className="adm-kicker">04</span>
@@ -2846,7 +2911,7 @@ export default function AdminClient({
                 {/* 05 PRODUCT DESCRIPTION */}
                 <section className="space-y-4">
                   <div className="adm-section-head">
-                    <span className="adm-kicker">05</span>
+                    <span className="adm-kicker">04</span>
                     <strong>Product Description</strong>
                   </div>
 
@@ -2871,10 +2936,10 @@ export default function AdminClient({
                   </div>
                 </section>
 
-                {/* 06 STOREFRONT SETTINGS */}
+                {/* 05 STOREFRONT SETTINGS */}
                 <section className="space-y-3">
                   <div className="adm-section-head">
-                    <span className="adm-kicker">06</span>
+                    <span className="adm-kicker">04</span>
                     <strong>Storefront Settings</strong>
                   </div>
 
@@ -2892,10 +2957,10 @@ export default function AdminClient({
                   <p className="text-[10px] text-gray-400 -mt-1">Featured products use the “FEATURED” badge — toggle below in Dynamic Attributes or via badge text.</p>
                 </section>
 
-                {/* 07 DYNAMIC ATTRIBUTES */}
+                {/* 06 DYNAMIC ATTRIBUTES */}
                 <section className="space-y-4">
                   <div className="adm-section-head">
-                    <span className="adm-kicker">07</span>
+                    <span className="adm-kicker">05</span>
                     <strong>Dynamic Attributes</strong>
                     {propertyDefinitions.filter(isDefActive).length > 0 && (
                       <span className="ml-auto text-[10px] text-gray-400">
@@ -2907,7 +2972,7 @@ export default function AdminClient({
                   {(() => {
                     const dynamicDefs = propertyDefinitions
                       .filter(isDefActive)
-                      .filter((d) => !['sizes', 'colors', 'color-theme'].includes(d.slug));
+                      .filter((d) => !d.variant && !['sizes', 'colors', 'color-theme'].includes(d.slug));
 
                     if (dynamicDefs.length === 0) {
                       return (
@@ -3038,7 +3103,7 @@ export default function AdminClient({
                 <div className="sticky bottom-0 -mx-5 sm:-mx-8 px-5 sm:px-8 py-3.5 bg-white/95 backdrop-blur border-t border-gray-100 flex flex-col-reverse sm:flex-row justify-end items-stretch sm:items-center gap-2 z-10">
                   <button
                     type="button"
-                    onClick={() => setShowProductModal(false)}
+                    onClick={closeAtelier}
                     className="px-4 py-2.5 rounded-xl text-xs font-bold text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-colors order-last sm:order-first"
                   >
                     Cancel
