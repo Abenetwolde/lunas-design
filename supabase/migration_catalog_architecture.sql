@@ -182,4 +182,111 @@ begin
   end loop;
 end $$;
 
--- <<PART3>>
+-- ----------------------------------------------------------------------------
+-- 9. RPC — get_category_facets(category_slug)
+--    Filterable property definitions bound to the category (+ descendants),
+--    each option with a live product count. Zero-count options are hidden.
+--    Works for BOTH descriptive specs and variant combinations.
+-- ----------------------------------------------------------------------------
+
+-- Helper: category subtree ids (category + descendant categories + subcats)
+create or replace function public.get_category_subtree_ids(p_slug text)
+returns table (id uuid)
+language sql stable as $$
+  with recursive cat_tree as (
+      select c.id from public.categories c where c.slug = p_slug
+      union all
+      select c.id from public.categories c join cat_tree ct on c.parent_id = ct.id
+  )
+  select id from cat_tree
+  union
+  select sc.id from public.sub_categories sc
+  where sc.category_id in (select id from cat_tree) or sc.parent_id in (select id from cat_tree);
+$$;
+
+create or replace function public.get_category_facets(category_slug text)
+returns table (
+    property_id         uuid,
+    property_name       text,
+    property_slug       text,
+    data_type           text,
+    measurement_unit    text,
+    is_variant          boolean,
+    option_id           uuid,
+    option_label        text,
+    value_slug          text,
+    hex_colors          jsonb,
+    parent_color_bucket text,
+    product_count       bigint
+)
+language sql stable security definer set search_path = public as $$
+  with scope_cats as (select id from public.get_category_subtree_ids(category_slug)),
+  prod_scope as (
+      select p.id, coalesce(p.total_stock, 0) as stock
+      from public.products p
+      where p.main_category_id in (select id from scope_cats)
+         or p.sub_category_id  in (select id from scope_cats)
+  ),
+  spec_counts as (
+      select ps.property_definition_id, ps.property_option_id,
+             count(distinct ps.product_id)::bigint as cnt
+      from public.product_specifications ps
+      join prod_scope pr on pr.id = ps.product_id
+      group by 1, 2
+  ),
+  var_counts as (
+      select pd.id as property_definition_id, o.id as property_option_id,
+             count(distinct pv.product_id)::bigint as cnt
+      from public.product_variants pv
+      join prod_scope pr on pr.id = pv.product_id
+      cross join lateral jsonb_each_text(pv.combination) kv(slug_key, val)
+      join public.property_definitions pd on pd.slug = kv.slug_key
+      join public.property_options o
+           on o.property_definition_id = pd.id and o.value_slug = kv.val
+      group by 1, 2
+  ),
+  union_counts as (
+      select property_definition_id, property_option_id, max(cnt) as cnt
+      from (select property_definition_id, property_option_id, cnt from spec_counts
+            union all
+            select property_definition_id, property_option_id, cnt from var_counts) u
+      group by 1, 2
+  )
+  select pd.id, pd.name::text, pd.slug::text, pd.data_type::text,
+         pd.measurement_unit::text, pd.is_variant,
+         o.id, o.label::text, o.value_slug::text, o.hex_colors,
+         o.parent_color_bucket::text,
+         coalesce(uc.cnt, 0)::bigint
+  from public.property_definitions pd
+  join public.property_definition_categories jc
+       on jc.property_definition_id = pd.id and jc.category_id in (select id from scope_cats)
+  left join public.property_options o on o.property_definition_id = pd.id
+  left join union_counts uc
+       on uc.property_definition_id = pd.id and uc.property_option_id is not distinct from o.id
+  where pd.is_filterable and uc.cnt > 0
+  order by pd.sort_order, o.sort_order nulls last;
+$$;
+
+grant execute on function public.get_category_facets(text) to anon, authenticated;
+
+-- ----------------------------------------------------------------------------
+-- 10. PROJECT-STANDARD WRITE ACCESS
+--     This app's admin console currently authenticates via its own session
+--     mechanism (no Supabase JWT), so requests arrive as `anon`. To stay
+--     consistent with every other table in the project, allow anon writes.
+--     When you enable Supabase Auth for admins, DROP these four policies and
+--     rely solely on the `admin_write_*` (authenticated) policies above.
+-- ----------------------------------------------------------------------------
+do $$
+declare t text;
+begin
+  foreach t in array array['categories','sub_categories','property_definitions',
+                           'property_definition_categories','property_options',
+                           'product_specifications','product_variants']
+  loop
+    execute format('drop policy if exists %I on public.%I', 'app_anon_write_'||t, t);
+    execute format('create policy %I on public.%I for all using (true) with check (true);', 'app_anon_write_'||t, t);
+  end loop;
+end $$;
+
+comment on table public.property_definitions is 'Master attribute definitions (Shopify-Metafield style). Color/Size are NOT auto-seeded - admins create them explicitly.';
