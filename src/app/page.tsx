@@ -20,27 +20,25 @@ export default async function HomePage() {
       {/* Hero Banner */}
       <Hero />
 
-      {/* Feature Highlights */}
-      <FeatureBar />
-
       {/* Categories Grid */}
       <CategoryGrid categories={categories} />
 
       {/* NEW ARRIVALS Section */}
-      <section className="py-16 bg-white border-t border-[#E7E2DA]">
+      <section className="py-16 border-t transition-colors duration-300" style={{ backgroundColor: 'var(--theme-card-bg, #FFFFFF)', borderColor: 'var(--theme-border-color, #A7F3D0)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
-          <div className="flex items-end justify-between border-b border-[#E7E2DA] pb-4">
+          <div className="flex items-end justify-between border-b pb-4" style={{ borderColor: 'var(--theme-border-color, #A7F3D0)' }}>
             <div>
-              <span className="text-xs font-semibold uppercase tracking-[0.25em] text-[#C5A880]">
+              <span className="text-xs font-semibold uppercase tracking-[0.25em]" style={{ color: 'var(--theme-primary, #10B981)' }}>
                 Fresh Off The Runway
               </span>
-              <h2 className="font-serif text-3xl sm:text-4xl text-[#1A1A1A] font-light mt-1">
+              <h2 className="font-serif text-3xl sm:text-4xl font-light mt-1" style={{ color: 'var(--theme-text-primary, #064E3B)' }}>
                 New Arrivals
               </h2>
             </div>
             <Link
               href="/catalog"
-              className="text-xs font-bold uppercase tracking-widest text-[#1A1A1A] hover:text-[#C5A880] flex items-center gap-1 transition-colors"
+              className="text-xs font-bold uppercase tracking-widest flex items-center gap-1 transition-colors hover:opacity-80"
+              style={{ color: 'var(--theme-text-primary, #064E3B)' }}
             >
               <span>VIEW ALL</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -60,6 +58,9 @@ export default async function HomePage() {
 
       {/* Instagram Feed */}
       <InstagramFeed />
+
+      {/* Feature Highlights (Mini Cards above footer) */}
+      <FeatureBar />
     </div>
   );
 }

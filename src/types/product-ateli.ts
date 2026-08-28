@@ -4,8 +4,6 @@
 // property_options, products, product_specifications, product_variants
 // =============================================================================
 
-import { z } from '@huggingface/zod';
-
 // ---------------------------------------------------------------------------
 // 1. Categories & Sub-Categories
 // ---------------------------------------------------------------------------
@@ -49,7 +47,7 @@ export interface PropertyOption {
   property_definition_id: string;
   label: string;
   value_slug: string;
-  hex_colors: z.array(z.string()); // e.g. ['#FFFFFF', '#D4AF37'] for color swatches
+  hex_colors: string[]; // e.g. ['#FFFFFF', '#D4AF37'] for color swatches
   parent_color_bucket?: string; // grouping like "Gold", "White"
 }
 

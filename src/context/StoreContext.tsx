@@ -73,6 +73,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       const settings = await getSiteSettings();
       setSiteSettings(settings);
+      try {
+        localStorage.setItem('hiwi_site_settings', JSON.stringify(settings));
+      } catch (e) {}
       if (settings.telegramUsername) {
         setTelegramUsernameState(settings.telegramUsername);
       }
@@ -83,6 +86,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Load site settings & local storage
   useEffect(() => {
+    try {
+      const cachedSettings = localStorage.getItem('hiwi_site_settings');
+      if (cachedSettings) {
+        setSiteSettings(JSON.parse(cachedSettings));
+      }
+    } catch (e) {}
+
     refreshSiteData();
 
     try {
@@ -101,6 +111,46 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.error(e);
     }
   }, []);
+
+  // Dynamically apply Theme CSS custom variables to document root element
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const root = document.documentElement;
+    
+    // Core brand & accent theme variables
+    if (siteSettings.themePrimaryColor) root.style.setProperty('--theme-primary', siteSettings.themePrimaryColor);
+    if (siteSettings.themeSecondaryColor) root.style.setProperty('--theme-secondary', siteSettings.themeSecondaryColor);
+    if (siteSettings.themeHeaderBg) root.style.setProperty('--theme-header-bg', siteSettings.themeHeaderBg);
+    if (siteSettings.themeHeaderTextColor) root.style.setProperty('--theme-header-text', siteSettings.themeHeaderTextColor);
+    if (siteSettings.themeAppBg) root.style.setProperty('--theme-app-bg', siteSettings.themeAppBg);
+    
+    // Card detail theme variables
+    if (siteSettings.themeCardBg) root.style.setProperty('--theme-card-bg', siteSettings.themeCardBg);
+    if (siteSettings.themeCardTextColor) root.style.setProperty('--theme-card-text', siteSettings.themeCardTextColor);
+    if (siteSettings.themeCardMutedText) root.style.setProperty('--theme-card-muted', siteSettings.themeCardMutedText);
+    if (siteSettings.themeCardBorderColor) root.style.setProperty('--theme-card-border', siteSettings.themeCardBorderColor);
+    if (siteSettings.themeCardBadgeBg) root.style.setProperty('--theme-card-badge-bg', siteSettings.themeCardBadgeBg);
+    if (siteSettings.themeCardButtonBg) root.style.setProperty('--theme-card-button-bg', siteSettings.themeCardButtonBg);
+    if (siteSettings.themeCardButtonTextColor) root.style.setProperty('--theme-card-button-text', siteSettings.themeCardButtonTextColor);
+
+    // Global buttons, badges & announcements
+    if (siteSettings.themeButtonBg) root.style.setProperty('--theme-button-bg', siteSettings.themeButtonBg);
+    if (siteSettings.themeButtonTextColor) root.style.setProperty('--theme-button-text', siteSettings.themeButtonTextColor);
+    if (siteSettings.themeBadgeBg) root.style.setProperty('--theme-badge-bg', siteSettings.themeBadgeBg);
+    if (siteSettings.themeAnnouncementBg) root.style.setProperty('--theme-announcement-bg', siteSettings.themeAnnouncementBg);
+    if (siteSettings.themeAnnouncementTextColor) root.style.setProperty('--theme-announcement-text', siteSettings.themeAnnouncementTextColor);
+    if (siteSettings.themeTextPrimary) root.style.setProperty('--theme-text-primary', siteSettings.themeTextPrimary);
+    if (siteSettings.themeTextMuted) root.style.setProperty('--theme-text-muted', siteSettings.themeTextMuted);
+    if (siteSettings.themeBorderColor) root.style.setProperty('--theme-border-color', siteSettings.themeBorderColor);
+
+    // Sync legacy CSS variables for existing styles
+    if (siteSettings.themePrimaryColor) root.style.setProperty('--accent-gold', siteSettings.themePrimaryColor);
+    if (siteSettings.themeAppBg) root.style.setProperty('--bg-primary', siteSettings.themeAppBg);
+    if (siteSettings.themeCardBg) root.style.setProperty('--bg-card', siteSettings.themeCardBg);
+    if (siteSettings.themeTextPrimary) root.style.setProperty('--text-primary', siteSettings.themeTextPrimary);
+    if (siteSettings.themeTextMuted) root.style.setProperty('--text-muted', siteSettings.themeTextMuted);
+    if (siteSettings.themeBorderColor) root.style.setProperty('--border-color', siteSettings.themeBorderColor);
+  }, [siteSettings]);
 
   // Sync storage
   useEffect(() => {
@@ -125,9 +175,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateSiteSettingsState = async (newSettings: Partial<SiteSettings>) => {
-    const res = await updateSiteSettings(newSettings);
+    const merged = { ...siteSettings, ...newSettings };
+    setSiteSettings(merged);
+    try {
+      localStorage.setItem('hiwi_site_settings', JSON.stringify(merged));
+    } catch (e) {}
+    const res = await updateSiteSettings(merged);
     if (res.data) {
       setSiteSettings(res.data);
+      try {
+        localStorage.setItem('hiwi_site_settings', JSON.stringify(res.data));
+      } catch (e) {}
       if (res.data.telegramUsername) {
         setTelegramUsernameState(res.data.telegramUsername);
       }

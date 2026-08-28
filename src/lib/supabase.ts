@@ -51,6 +51,8 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   promoBannerCtaLink: '/catalog',
 
   // Instagram Showcase Defaults
+  instagramTitle: 'Follow Hiwi Fashion on Instagram',
+  instagramSubtitle: 'EDITORIAL COMMUNITY',
   instagramHandle: '@HIWI.FASHION',
   instagramImages: [
     'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&q=80&w=600',
@@ -60,6 +62,29 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
     'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&q=80&w=600',
     'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?auto=format&fit=crop&q=80&w=600',
   ],
+
+  // Theme Customizer Defaults (💎 Modern Emerald Luxe)
+  themePrimaryColor: '#10B981',
+  themeSecondaryColor: '#064E3B',
+  themeHeaderBg: '#064E3B',
+  themeHeaderTextColor: '#FFFFFF',
+  themeAppBg: '#F0FDF4',
+  themeCardBg: '#FFFFFF',
+  themeCardTextColor: '#064E3B',
+  themeCardMutedText: '#047857',
+  themeCardBorderColor: '#A7F3D0',
+  themeCardBadgeBg: '#F59E0B',
+  themeCardButtonBg: '#064E3B',
+  themeCardButtonTextColor: '#FFFFFF',
+  themeButtonBg: '#064E3B',
+  themeButtonTextColor: '#FFFFFF',
+  themeBadgeBg: '#F59E0B',
+  themeAnnouncementBg: '#064E3B',
+  themeAnnouncementTextColor: '#A7F3D0',
+  themeTextPrimary: '#064E3B',
+  themeTextMuted: '#047857',
+  themeBorderColor: '#A7F3D0',
+  themePresetName: 'emerald_luxe',
 };
 
 let inMemorySiteSettings: SiteSettings = { ...DEFAULT_SITE_SETTINGS };
@@ -79,7 +104,7 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       return inMemorySiteSettings;
     }
 
-    const fetched: SiteSettings = {
+    let fetched: SiteSettings = {
       id: data.id || 'default',
       siteName: data.site_name || DEFAULT_SITE_SETTINGS.siteName,
       tagline: data.tagline || DEFAULT_SITE_SETTINGS.tagline,
@@ -116,13 +141,56 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       promoBannerCtaText: data.promo_banner_cta_text || DEFAULT_SITE_SETTINGS.promoBannerCtaText,
       promoBannerCtaLink: data.promo_banner_cta_link || DEFAULT_SITE_SETTINGS.promoBannerCtaLink,
 
+      instagramTitle: data.instagram_title || DEFAULT_SITE_SETTINGS.instagramTitle,
+      instagramSubtitle: data.instagram_subtitle || DEFAULT_SITE_SETTINGS.instagramSubtitle,
       instagramHandle: data.instagram_handle || DEFAULT_SITE_SETTINGS.instagramHandle,
       instagramImages: data.instagram_images || DEFAULT_SITE_SETTINGS.instagramImages,
+
+      // Dynamic Theme Settings
+      themePrimaryColor: data.theme_primary_color || inMemorySiteSettings.themePrimaryColor || DEFAULT_SITE_SETTINGS.themePrimaryColor,
+      themeSecondaryColor: data.theme_secondary_color || inMemorySiteSettings.themeSecondaryColor || DEFAULT_SITE_SETTINGS.themeSecondaryColor,
+      themeHeaderBg: data.theme_header_bg || inMemorySiteSettings.themeHeaderBg || DEFAULT_SITE_SETTINGS.themeHeaderBg,
+      themeHeaderTextColor: data.theme_header_text_color || inMemorySiteSettings.themeHeaderTextColor || DEFAULT_SITE_SETTINGS.themeHeaderTextColor,
+      themeAppBg: data.theme_app_bg || inMemorySiteSettings.themeAppBg || DEFAULT_SITE_SETTINGS.themeAppBg,
+      themeCardBg: data.theme_card_bg || inMemorySiteSettings.themeCardBg || DEFAULT_SITE_SETTINGS.themeCardBg,
+      themeCardTextColor: data.theme_card_text_color || inMemorySiteSettings.themeCardTextColor || DEFAULT_SITE_SETTINGS.themeCardTextColor,
+      themeCardMutedText: data.theme_card_muted_text || inMemorySiteSettings.themeCardMutedText || DEFAULT_SITE_SETTINGS.themeCardMutedText,
+      themeCardBorderColor: data.theme_card_border_color || inMemorySiteSettings.themeCardBorderColor || DEFAULT_SITE_SETTINGS.themeCardBorderColor,
+      themeCardBadgeBg: data.theme_card_badge_bg || inMemorySiteSettings.themeCardBadgeBg || DEFAULT_SITE_SETTINGS.themeCardBadgeBg,
+      themeCardButtonBg: data.theme_card_button_bg || inMemorySiteSettings.themeCardButtonBg || DEFAULT_SITE_SETTINGS.themeCardButtonBg,
+      themeCardButtonTextColor: data.theme_card_button_text_color || inMemorySiteSettings.themeCardButtonTextColor || DEFAULT_SITE_SETTINGS.themeCardButtonTextColor,
+      themeButtonBg: data.theme_button_bg || inMemorySiteSettings.themeButtonBg || DEFAULT_SITE_SETTINGS.themeButtonBg,
+      themeButtonTextColor: data.theme_button_text_color || inMemorySiteSettings.themeButtonTextColor || DEFAULT_SITE_SETTINGS.themeButtonTextColor,
+      themeBadgeBg: data.theme_badge_bg || inMemorySiteSettings.themeBadgeBg || DEFAULT_SITE_SETTINGS.themeBadgeBg,
+      themeAnnouncementBg: data.theme_announcement_bg || inMemorySiteSettings.themeAnnouncementBg || DEFAULT_SITE_SETTINGS.themeAnnouncementBg,
+      themeAnnouncementTextColor: data.theme_announcement_text_color || inMemorySiteSettings.themeAnnouncementTextColor || DEFAULT_SITE_SETTINGS.themeAnnouncementTextColor,
+      themeTextPrimary: data.theme_text_primary || inMemorySiteSettings.themeTextPrimary || DEFAULT_SITE_SETTINGS.themeTextPrimary,
+      themeTextMuted: data.theme_text_muted || inMemorySiteSettings.themeTextMuted || DEFAULT_SITE_SETTINGS.themeTextMuted,
+      themeBorderColor: data.theme_border_color || inMemorySiteSettings.themeBorderColor || DEFAULT_SITE_SETTINGS.themeBorderColor,
+      themePresetName: data.theme_preset_name || inMemorySiteSettings.themePresetName || DEFAULT_SITE_SETTINGS.themePresetName,
     };
+
+    if (typeof window !== 'undefined') {
+      try {
+        const local = localStorage.getItem('hiwi_site_settings');
+        if (local) {
+          const parsed = JSON.parse(local);
+          fetched = { ...fetched, ...parsed };
+        }
+      } catch (e) {}
+    }
 
     inMemorySiteSettings = fetched;
     return fetched;
   } catch (err) {
+    if (typeof window !== 'undefined') {
+      try {
+        const local = localStorage.getItem('hiwi_site_settings');
+        if (local) {
+          inMemorySiteSettings = { ...inMemorySiteSettings, ...JSON.parse(local) };
+        }
+      } catch (e) {}
+    }
     return inMemorySiteSettings;
   }
 }
@@ -135,6 +203,13 @@ export async function updateSiteSettings(settings: Partial<SiteSettings>): Promi
     ...inMemorySiteSettings,
     ...settings,
   };
+
+  inMemorySiteSettings = updated;
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem('hiwi_site_settings', JSON.stringify(updated));
+    } catch (e) {}
+  }
 
   try {
     const payload: any = {
@@ -176,8 +251,32 @@ export async function updateSiteSettings(settings: Partial<SiteSettings>): Promi
     if (updated.promoBannerCtaText !== undefined) payload.promo_banner_cta_text = updated.promoBannerCtaText;
     if (updated.promoBannerCtaLink !== undefined) payload.promo_banner_cta_link = updated.promoBannerCtaLink;
 
+    if (updated.instagramTitle !== undefined) payload.instagram_title = updated.instagramTitle;
     if (updated.instagramHandle !== undefined) payload.instagram_handle = updated.instagramHandle;
     if (updated.instagramImages !== undefined) payload.instagram_images = updated.instagramImages;
+
+    // Theme Customizer payload mapping
+    if (updated.themePrimaryColor !== undefined) payload.theme_primary_color = updated.themePrimaryColor;
+    if (updated.themeSecondaryColor !== undefined) payload.theme_secondary_color = updated.themeSecondaryColor;
+    if (updated.themeHeaderBg !== undefined) payload.theme_header_bg = updated.themeHeaderBg;
+    if (updated.themeHeaderTextColor !== undefined) payload.theme_header_text_color = updated.themeHeaderTextColor;
+    if (updated.themeAppBg !== undefined) payload.theme_app_bg = updated.themeAppBg;
+    if (updated.themeCardBg !== undefined) payload.theme_card_bg = updated.themeCardBg;
+    if (updated.themeCardTextColor !== undefined) payload.theme_card_text_color = updated.themeCardTextColor;
+    if (updated.themeCardMutedText !== undefined) payload.theme_card_muted_text = updated.themeCardMutedText;
+    if (updated.themeCardBorderColor !== undefined) payload.theme_card_border_color = updated.themeCardBorderColor;
+    if (updated.themeCardBadgeBg !== undefined) payload.theme_card_badge_bg = updated.themeCardBadgeBg;
+    if (updated.themeCardButtonBg !== undefined) payload.theme_card_button_bg = updated.themeCardButtonBg;
+    if (updated.themeCardButtonTextColor !== undefined) payload.theme_card_button_text_color = updated.themeCardButtonTextColor;
+    if (updated.themeButtonBg !== undefined) payload.theme_button_bg = updated.themeButtonBg;
+    if (updated.themeButtonTextColor !== undefined) payload.theme_button_text_color = updated.themeButtonTextColor;
+    if (updated.themeBadgeBg !== undefined) payload.theme_badge_bg = updated.themeBadgeBg;
+    if (updated.themeAnnouncementBg !== undefined) payload.theme_announcement_bg = updated.themeAnnouncementBg;
+    if (updated.themeAnnouncementTextColor !== undefined) payload.theme_announcement_text_color = updated.themeAnnouncementTextColor;
+    if (updated.themeTextPrimary !== undefined) payload.theme_text_primary = updated.themeTextPrimary;
+    if (updated.themeTextMuted !== undefined) payload.theme_text_muted = updated.themeTextMuted;
+    if (updated.themeBorderColor !== undefined) payload.theme_border_color = updated.themeBorderColor;
+    if (updated.themePresetName !== undefined) payload.theme_preset_name = updated.themePresetName;
 
     let attempts = 0;
     while (attempts < 30) {

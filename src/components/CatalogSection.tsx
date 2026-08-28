@@ -613,6 +613,8 @@ export const CatalogSection: React.FC<CatalogSectionProps> = ({
         .filter(
           (pdef) =>
             pdef.filterable &&
+            pdef.slug !== 'color' &&
+            pdef.type !== 'color' &&
             (selectedCategories.length === 0 ||
               pdef.categoryIds.includes('all') ||
               selectedCategories.some((sc) => pdef.categoryIds.includes(sc)))
@@ -697,7 +699,13 @@ export const CatalogSection: React.FC<CatalogSectionProps> = ({
   );
 
   return (
-    <div className="bg-[#F9F7F4] min-h-screen py-6 sm:py-8">
+    <div
+      className="min-h-screen pt-24 pb-12 transition-colors duration-300"
+      style={{
+        backgroundColor: 'var(--theme-app-bg, #F9F7F4)',
+        color: 'var(--theme-text-primary, #1A1A1A)',
+      }}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
         
         {/* Category Hero Banner */}

@@ -2,25 +2,70 @@
 
 @layer base {
   :root {
-    --bg-primary: #F9F7F4;
-    --bg-card: #FFFFFF;
-    --bg-accent: #FAF8F5;
-    --text-primary: #1A1A1A;
-    --text-muted: #666059;
-    --border-color: #E7E2DA;
-    --accent-gold: #C5A880;
-    --accent-gold-dark: #A88B64;
+    --bg-primary: var(--theme-app-bg, #F9F7F4);
+    --bg-card: var(--theme-card-bg, #FFFFFF);
+    --bg-accent: var(--theme-app-bg, #FAF8F5);
+    --text-primary: var(--theme-text-primary, #1A1A1A);
+    --text-muted: var(--theme-text-muted, #666059);
+    --border-color: var(--theme-border-color, #E7E2DA);
+    --accent-gold: var(--theme-primary, #C5A880);
+    --accent-gold-dark: var(--theme-primary, #A88B64);
     --telegram-color: #0088cc;
     --telegram-hover: #0077b3;
+
+    /* Admin Dynamic Theme Customizer Variables */
+    --theme-primary: #C5A880;
+    --theme-secondary: #1A1A1A;
+    --theme-header-bg: #1A1A1A;
+    --theme-header-text: #FFFFFF;
+    --theme-app-bg: #F9F7F4;
+    --theme-card-bg: #FFFFFF;
+    --theme-card-text: #1A1A1A;
+    --theme-card-muted: #666059;
+    --theme-card-border: #E7E2DA;
+    --theme-card-badge-bg: #DC2626;
+    --theme-card-button-bg: #1A1A1A;
+    --theme-card-button-text: #FFFFFF;
+    --theme-button-bg: #1A1A1A;
+    --theme-button-text: #FFFFFF;
+    --theme-badge-bg: #DC2626;
+    --theme-announcement-bg: #1A1A1A;
+    --theme-announcement-text: #C5A880;
+    --theme-text-primary: #1A1A1A;
+    --theme-text-muted: #666059;
+    --theme-border-color: #E7E2DA;
   }
 
   body {
-    background-color: var(--bg-primary);
-    color: var(--text-primary);
+    background-color: var(--theme-app-bg, var(--bg-primary));
+    color: var(--theme-text-primary, var(--text-primary));
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     overflow-x: hidden;
   }
 }
+
+/* Theme Dynamic Utility Helper Classes */
+.bg-theme-app { background-color: var(--theme-app-bg) !important; }
+.bg-theme-card { background-color: var(--theme-card-bg) !important; }
+.bg-theme-header { background-color: var(--theme-header-bg) !important; }
+.bg-theme-primary { background-color: var(--theme-primary) !important; }
+.bg-theme-secondary { background-color: var(--theme-secondary) !important; }
+.bg-theme-button { background-color: var(--theme-button-bg) !important; color: var(--theme-button-text) !important; }
+.bg-theme-badge { background-color: var(--theme-badge-bg) !important; }
+.bg-theme-announcement { background-color: var(--theme-announcement-bg) !important; color: var(--theme-announcement-text) !important; }
+
+.bg-theme-card-btn { background-color: var(--theme-card-button-bg) !important; color: var(--theme-card-button-text) !important; }
+.text-theme-card-title { color: var(--theme-card-text) !important; }
+.text-theme-card-muted { color: var(--theme-card-muted) !important; }
+.border-theme-card { border-color: var(--theme-card-border) !important; }
+
+.text-theme-primary { color: var(--theme-primary) !important; }
+.text-theme-secondary { color: var(--theme-secondary) !important; }
+.text-theme-header { color: var(--theme-header-text) !important; }
+.text-theme-main { color: var(--theme-text-primary) !important; }
+.text-theme-muted { color: var(--theme-text-muted) !important; }
+
+.border-theme { border-color: var(--theme-border-color) !important; }
 
 /* Custom scrollbars */
 ::-webkit-scrollbar {
@@ -90,39 +135,54 @@
 }
 
 /* ============================================================================
-   HIWI ADMIN DESIGN SYSTEM — soft, low-border, calm
-   Scoped under .hiwi-admin so the storefront is untouched.
+   HIWI ADMIN DYNAMIC THEME SYSTEM — soft, responsive, fully themed
    ============================================================================ */
+.hiwi-admin {
+  background-color: var(--theme-app-bg, #F9F7F4);
+  color: var(--theme-text-primary, #1A1A1A);
+}
+
+.adm-card {
+  background-color: var(--theme-card-bg, #FFFFFF);
+  color: var(--theme-text-primary, #1A1A1A);
+  border: 1px solid var(--theme-border-color, #E7E2DA);
+  border-radius: 1.25rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
+}
+
 .hiwi-admin input,
 .hiwi-admin select,
 .hiwi-admin textarea {
-  background-color: #ffffff;
-  border: 1px solid rgb(228 224 218 / 0.9);
+  background-color: var(--theme-card-bg, #ffffff);
+  border: 1px solid var(--theme-border-color, #e4e0da);
   border-radius: 0.75rem;
-  color: #1a1a1a;
+  color: var(--theme-text-primary, #1a1a1a);
   font-size: 0.8125rem;
-  transition: border-color 160ms ease, box-shadow 160ms ease;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
 }
+
 .hiwi-admin input:focus,
 .hiwi-admin select:focus,
 .hiwi-admin textarea:focus {
   outline: none;
-  border-color: #c5a880;
-  box-shadow: 0 0 0 4px rgb(197 168 128 / 0.12);
+  border-color: var(--theme-primary, #c5a880);
+  box-shadow: 0 0 0 4px rgba(197, 168, 128, 0.15);
 }
+
 .hiwi-admin input::placeholder,
 .hiwi-admin textarea::placeholder {
-  color: #a8a29e;
+  color: var(--theme-text-muted, #a8a29e);
   font-weight: 400;
 }
-/* Calm labels: smaller, medium weight, no shouting */
+
 .hiwi-admin label {
   font-weight: 600 !important;
   text-transform: none !important;
   letter-spacing: 0.01em !important;
-  color: #6b7280 !important;
+  color: var(--theme-text-muted, #6b7280) !important;
   font-size: 11px !important;
 }
+
 .hiwi-admin .adm-kicker {
   display: inline-flex;
   align-items: center;
@@ -131,19 +191,21 @@
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #c5a880;
+  color: var(--theme-primary, #c5a880);
 }
+
 .hiwi-admin .adm-section-head {
   display: flex;
   align-items: baseline;
   gap: 0.625rem;
   padding-bottom: 0.6rem;
   margin-bottom: 0.25rem;
-  border-bottom: 1px solid rgb(0 0 0 / 0.05);
+  border-bottom: 1px solid var(--theme-border-color, rgba(0, 0, 0, 0.05));
 }
+
 .hiwi-admin .adm-section-head strong {
   font-family: Georgia, 'Times New Roman', serif;
   font-size: 15px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--theme-text-primary, #1a1a1a);
 }

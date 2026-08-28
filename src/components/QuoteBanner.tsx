@@ -15,9 +15,18 @@ export const QuoteBanner: React.FC = () => {
   const ctaLink = siteSettings.promoBannerCtaLink || '/catalog';
 
   return (
-    <section className="py-16 bg-[#F9F7F4]">
+    <section
+      className="py-12 sm:py-16 transition-colors duration-300"
+      style={{ backgroundColor: 'var(--theme-app-bg, #F0FDF4)' }}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="relative rounded-3xl overflow-hidden bg-[#EAE4DC] border border-[#E7E2DA] min-h-[380px] flex items-center p-8 sm:p-12 lg:p-16">
+        <div
+          className="relative rounded-3xl overflow-hidden border min-h-[360px] sm:min-h-[420px] flex items-center p-6 sm:p-12 lg:p-16 shadow-md"
+          style={{
+            backgroundColor: 'var(--theme-card-bg, #FFFFFF)',
+            borderColor: 'var(--theme-border-color, #A7F3D0)',
+          }}
+        >
           {/* Background image & gradient */}
           <div className="absolute inset-0 z-0">
             <img
@@ -25,24 +34,37 @@ export const QuoteBanner: React.FC = () => {
               alt={siteSettings.siteName || 'Hiwi Fashion Habesha Atelier'}
               className="w-full h-full object-cover object-center filter brightness-90"
             />
-            <div className="absolute inset-0 bg-gradient-to-r from-[#FAF8F5]/95 via-[#FAF8F5]/75 to-transparent md:w-3/5" />
+            <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/80 to-transparent md:w-3/5" />
           </div>
 
           {/* Content */}
           <div className="relative z-10 max-w-xl space-y-4">
-            <span className="text-xs font-bold uppercase tracking-[0.3em] text-[#C5A880]">
+            <span
+              className="text-xs font-bold uppercase tracking-[0.3em] inline-block"
+              style={{ color: 'var(--theme-primary, #10B981)' }}
+            >
               AUTHENTIC • TIMELESS • HABESHA
             </span>
-            <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-light text-[#1A1A1A] leading-tight">
+            <h2
+              className="font-serif text-2xl sm:text-4xl lg:text-5xl font-light leading-tight"
+              style={{ color: 'var(--theme-text-primary, #064E3B)' }}
+            >
               {headline}
             </h2>
-            <p className="text-sm sm:text-base text-gray-700 font-light leading-relaxed">
+            <p
+              className="text-xs sm:text-base font-light leading-relaxed opacity-90"
+              style={{ color: 'var(--theme-text-muted, #047857)' }}
+            >
               {subtitle}
             </p>
             <div className="pt-2">
               <Link
                 href={ctaLink}
-                className="inline-flex items-center gap-2 px-8 py-3.5 bg-[#1A1A1A] text-white text-xs font-bold uppercase tracking-widest hover:bg-[#C5A880] transition-colors shadow-md rounded-xl"
+                className="inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-3.5 text-xs font-bold uppercase tracking-widest transition-all shadow-md rounded-xl hover:opacity-90 active:scale-95"
+                style={{
+                  backgroundColor: 'var(--theme-button-bg, #064E3B)',
+                  color: 'var(--theme-button-text, #FFFFFF)',
+                }}
               >
                 <span>{ctaText}</span>
                 <ArrowRight className="w-4 h-4" />

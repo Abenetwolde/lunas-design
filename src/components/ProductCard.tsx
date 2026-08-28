@@ -26,7 +26,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     : null;
 
   return (
-    <div className="group relative flex flex-col bg-white rounded-2xl overflow-hidden border border-[#E7E2DA] hover:shadow-xl transition-all duration-300">
+    <div
+      className="group relative flex flex-col rounded-2xl overflow-hidden border hover:shadow-xl transition-all duration-300"
+      style={{
+        backgroundColor: 'var(--theme-card-bg, #FFFFFF)',
+        borderColor: 'var(--theme-card-border, var(--theme-border-color, #E7E2DA))',
+      }}
+    >
       
       {/* Image Container */}
       <div className="relative aspect-[3/4] w-full overflow-hidden bg-[#FAF8F5]">
@@ -58,17 +64,26 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           ) : (
             <>
               {product.badgeText && (
-                <span className="bg-[#1A1A1A] text-white text-[9px] font-bold tracking-widest px-2.5 py-1 uppercase rounded-md shadow-sm">
+                <span
+                  className="text-white text-[9px] font-bold tracking-widest px-2.5 py-1 uppercase rounded-md shadow-sm"
+                  style={{ backgroundColor: 'var(--theme-card-badge-bg, var(--theme-badge-bg, #DC2626))' }}
+                >
                   {product.badgeText}
                 </span>
               )}
               {product.isNew && !product.badgeText && (
-                <span className="bg-[#1A1A1A] text-white text-[9px] font-bold tracking-widest px-2.5 py-1 uppercase rounded-md shadow-sm">
+                <span
+                  className="text-white text-[9px] font-bold tracking-widest px-2.5 py-1 uppercase rounded-md shadow-sm"
+                  style={{ backgroundColor: 'var(--theme-card-badge-bg, var(--theme-badge-bg, #DC2626))' }}
+                >
                   NEW
                 </span>
               )}
               {product.isSale && formattedOriginalPrice && !product.badgeText && (
-                <span className="bg-red-600 text-white text-[9px] font-bold tracking-widest px-2.5 py-1 uppercase rounded-md shadow-sm">
+                <span
+                  className="text-white text-[9px] font-bold tracking-widest px-2.5 py-1 uppercase rounded-md shadow-sm"
+                  style={{ backgroundColor: 'var(--theme-card-badge-bg, var(--theme-badge-bg, #DC2626))' }}
+                >
                   SALE
                 </span>
               )}
@@ -104,11 +119,17 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         
         {/* Category & Title */}
         <div className="space-y-1">
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#C5A880]">
+          <span
+            className="text-[10px] font-bold uppercase tracking-[0.2em] block"
+            style={{ color: 'var(--theme-primary, #C5A880)' }}
+          >
             {product.category}
           </span>
           <Link href={`/product/${product.slug}`} className="block">
-            <h3 className="text-xs sm:text-sm font-bold text-[#1A1A1A] hover:text-[#C5A880] transition-colors line-clamp-1">
+            <h3
+              className="text-xs sm:text-sm font-bold transition-colors line-clamp-1"
+              style={{ color: 'var(--theme-card-text, var(--theme-text-primary, #1A1A1A))' }}
+            >
               {product.name}
             </h3>
           </Link>
@@ -132,17 +153,33 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         )}
 
         {/* Rating & Conditional ETB Price */}
-        <div className="flex items-center justify-between pt-1 border-t border-[#E7E2DA]">
+        <div
+          className="flex items-center justify-between pt-1 border-t"
+          style={{ borderColor: 'var(--theme-card-border, var(--theme-border-color, #E7E2DA))' }}
+        >
           <div className="flex items-baseline gap-2">
-            <span className="text-sm font-extrabold text-[#1A1A1A]">{formattedPrice}</span>
+            <span
+              className="text-sm font-extrabold"
+              style={{ color: 'var(--theme-card-text, var(--theme-text-primary, #1A1A1A))' }}
+            >
+              {formattedPrice}
+            </span>
             {formattedOriginalPrice && (
-              <span className="text-[11px] text-gray-400 line-through font-normal">{formattedOriginalPrice}</span>
+              <span
+                className="text-[11px] line-through font-normal"
+                style={{ color: 'var(--theme-card-muted, var(--theme-text-muted, #666059))' }}
+              >
+                {formattedOriginalPrice}
+              </span>
             )}
           </div>
 
           {/* Real rating only — hidden completely when the product has no customer reviews */}
           {Number(product.reviewsCount) > 0 && Number(product.rating) > 0 && (
-            <div className="flex items-center gap-1 text-[11px] font-semibold text-gray-600">
+            <div
+              className="flex items-center gap-1 text-[11px] font-semibold"
+              style={{ color: 'var(--theme-card-muted, var(--theme-text-muted, #666059))' }}
+            >
               <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
               <span>{Number(product.rating).toFixed(1)}</span>
             </div>
@@ -154,9 +191,17 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           href={`/product/${product.slug || product.id}`}
           className={`w-full py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 mt-1 text-center ${
             isInStock
-              ? 'bg-[#1A1A1A] hover:bg-[#C5A880] text-white hover:text-black'
+              ? 'hover:opacity-90'
               : 'bg-gray-200 text-gray-500 cursor-not-allowed pointer-events-none'
           }`}
+          style={
+            isInStock
+              ? {
+                  backgroundColor: 'var(--theme-card-button-bg, var(--theme-button-bg, #1A1A1A))',
+                  color: 'var(--theme-card-button-text, var(--theme-button-text, #FFFFFF))',
+                }
+              : {}
+          }
         >
           <ShoppingBag className="w-3.5 h-3.5" />
           <span>{isInStock ? t('selectAndBuy') : t('outOfStock')}</span>

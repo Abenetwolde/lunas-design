@@ -30,6 +30,7 @@ import {
 } from '../../lib/supabase';
 import { uploadImageToSupabase } from '../../lib/supabaseStorage';
 import { useStore } from '../../context/StoreContext';
+import { THEME_PRESETS, ThemePreset } from '../../lib/themePresets';
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -65,6 +66,8 @@ import {
   MapPin,
   Star,
   Palette,
+  Paintbrush,
+  RotateCcw,
   Globe,
   Camera,
   Truck,
@@ -97,7 +100,7 @@ interface Props {
   initialSubcategories?: SubCategory[];
   initialOrders: OrderInquiry[];
   initialSettings?: SiteSettings;
-  initialTab?: 'overview' | 'products' | 'categories' | 'subcategories' | 'orders' | 'site';
+  initialTab?: 'overview' | 'products' | 'categories' | 'subcategories' | 'properties' | 'orders' | 'site' | 'theme';
 }
 
 export default function AdminClient({
@@ -123,7 +126,7 @@ export default function AdminClient({
   const [orders, setOrders] = useState<OrderInquiry[]>(initialOrders);
 
   // Sidebar & Navigation states
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'categories' | 'subcategories' | 'properties' | 'orders' | 'site'>(initialTab as any);
+  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'categories' | 'subcategories' | 'properties' | 'orders' | 'site' | 'theme'>(initialTab as any);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
@@ -370,23 +373,20 @@ export default function AdminClient({
     setEditingProductId(null);
     setPName('');
     setPCategory(categories[0]?.slug || 'dresses');
-    setPPrice('2500');
+    setPPrice('');
     setPSubcategory('');
-    setPOrigPrice(''); // Empty by default (Optional)
-    setPDesc('Handcrafted authentic Ethiopian fashion garment.');
-    setPMaterial('Ethiopian Fine Cotton');
-    setPOccasion('Casual & Ceremonial');
-    setPFabricCare('Traditional handwoven cotton. Hand wash cold or dry clean recommended.');
-    setPDeliveryInfo('Fast delivery available in Addis Ababa within 24-48 hours.');
-    setPStock('15');
+    setPOrigPrice('');
+    setPDesc('');
+    setPMaterial('');
+    setPOccasion('');
+    setPFabricCare('');
+    setPDeliveryInfo('');
+    setPStock('');
     setPImage('');
     setPSecondaryImage('');
     setPGalleryImages([]);
-    setPColors([
-      { name: 'White & Gold', hex: '#FAF8F5' },
-      { name: 'Black & Gold', hex: '#1A1A1A' },
-    ]);
-    setPSizes(['XS', 'S', 'M', 'L', 'XL']);
+    setPColors([]);
+    setPSizes([]);
     setPIsNew(true);
     setPIsSale(false);
     setPInStock(true);
@@ -950,16 +950,28 @@ export default function AdminClient({
   const totalRevenue = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
   const pendingOrdersCount = orders.filter((o) => !o.status || o.status === 'Telegram Pending').length;
 
+  const handleApplyThemePreset = (preset: ThemePreset) => {
+    const updatedForm: SiteSettings = {
+      ...siteForm,
+      ...preset.settings,
+      themePresetName: preset.id,
+    };
+    setSiteForm(updatedForm);
+    updateSiteSettingsState(updatedForm);
+    showToast(`Applied & activated preset: ${preset.name}`);
+  };
+
   const navMenuItems = [
     { id: 'overview', label: 'Overview & Stats', icon: LayoutDashboard },
     { id: 'products', label: 'Products & Inventory', icon: ShoppingBag, badge: products.length },
     { id: 'categories', label: 'Categories', icon: Layers, badge: categories.length },
-    { id: 'subcategories', label: 'Sub-Categories / Styles', icon: Tag, badge: subcategories.length },
+    { id: 'subcategories', label: 'Sub-Categories & Attributes', icon: Tag, badge: subcategories.length },
     { id: 'orders', label: 'Telegram Orders', icon: Send, badge: pendingOrdersCount ? `${pendingOrdersCount} pending` : orders.length },
     { id: 'site', label: 'Site Content & Hero', icon: Sliders },
+    { id: 'theme', label: 'App Theme Customizer', icon: Palette },
   ];
 
-  const handleTabClick = (tabId: 'overview' | 'products' | 'categories' | 'subcategories' | 'orders' | 'site') => {
+  const handleTabClick = (tabId: 'overview' | 'products' | 'categories' | 'subcategories' | 'properties' | 'orders' | 'site' | 'theme') => {
     setActiveTab(tabId);
     setMobileSidebarOpen(false);
     if (tabId === 'overview') {
@@ -1001,33 +1013,51 @@ export default function AdminClient({
   if (!isAuthenticated) {
     return null;
   }
-
   return (
-    <div className="hiwi-admin min-h-screen bg-[#FAF8F5] flex flex-col lg:flex-row font-sans">
+    <div
+      className="hiwi-admin min-h-screen flex flex-col lg:flex-row font-sans transition-colors duration-300"
+      style={{
+        backgroundColor: 'var(--theme-app-bg, #FAF8F5)',
+        color: 'var(--theme-text-primary, #1A1A1A)',
+      }}
+    >
       
       {/* Toast Notification */}
       {notification && (
-        <div className="fixed bottom-6 right-6 z-50 bg-[#1A1A1A] text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-bold border border-[#C5A880] animate-in fade-in slide-in-from-bottom">
-          <Sparkles className="w-4 h-4 text-[#C5A880]" />
+        <div
+          className="fixed bottom-6 right-6 z-50 px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-bold border animate-in fade-in slide-in-from-bottom"
+          style={{
+            backgroundColor: 'var(--theme-header-bg, #1A1A1A)',
+            color: 'var(--theme-header-text, #FFFFFF)',
+            borderColor: 'var(--theme-primary, #C5A880)',
+          }}
+        >
+          <Sparkles className="w-4 h-4" style={{ color: 'var(--theme-primary, #C5A880)' }} />
           <span>{notification}</span>
         </div>
       )}
 
       {/* MOBILE TOP HEADER BAR */}
-      <div className="lg:hidden bg-[#1A1A1A] text-white px-4 py-3 flex items-center justify-between sticky top-0 z-30 shadow-md">
+      <div
+        className="lg:hidden px-4 py-3 flex items-center justify-between sticky top-0 z-30 shadow-md transition-colors"
+        style={{
+          backgroundColor: 'var(--theme-header-bg, #1A1A1A)',
+          color: 'var(--theme-header-text, #FFFFFF)',
+        }}
+      >
         <div className="flex items-center gap-2">
           <button
             onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
-            className="p-2 text-gray-300 hover:text-white"
+            className="p-2 opacity-80 hover:opacity-100"
           >
             {mobileSidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
           <Link href="/" className="flex items-center gap-1.5 hover:opacity-80" title="Visit Storefront Website">
             <div>
-              <h2 className="font-serif text-lg font-bold tracking-wider text-white uppercase flex items-center gap-1">
-                Hiwi Fashion <ExternalLink className="w-3.5 h-3.5 text-[#C5A880]" />
+              <h2 className="font-serif text-lg font-bold tracking-wider uppercase flex items-center gap-1">
+                Hiwi Fashion <ExternalLink className="w-3.5 h-3.5" style={{ color: 'var(--theme-primary, #C5A880)' }} />
               </h2>
-              <span className="text-[9px] text-[#C5A880] uppercase tracking-widest block -mt-1">
+              <span className="text-[9px] uppercase tracking-widest block -mt-1 font-bold" style={{ color: 'var(--theme-primary, #C5A880)' }}>
                 Admin Console
               </span>
             </div>
@@ -1036,7 +1066,7 @@ export default function AdminClient({
 
         <button
           onClick={handleLogout}
-          className="p-2 text-gray-300 hover:text-red-400"
+          className="p-2 opacity-80 hover:text-red-400"
           title="Sign Out"
         >
           <LogOut className="w-5 h-5" />
@@ -1045,39 +1075,44 @@ export default function AdminClient({
 
       {/* LEFT SIDEBAR MENU */}
       <aside
-        className={`fixed lg:sticky top-0 inset-y-0 left-0 z-40 w-72 bg-[#1A1A1A] text-white flex flex-col justify-between p-6 border-r border-zinc-800 transition-transform duration-300 ease-in-out ${
+        className={`fixed lg:sticky top-0 inset-y-0 left-0 z-40 w-72 flex flex-col justify-between p-6 border-r transition-all duration-300 ease-in-out ${
           mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
+        style={{
+          backgroundColor: 'var(--theme-header-bg, var(--theme-secondary, #1A1A1A))',
+          color: 'var(--theme-header-text, #FFFFFF)',
+          borderColor: 'var(--theme-border-color, rgba(255,255,255,0.15))',
+        }}
       >
         <div className="space-y-8">
           
           {/* Brand Header (Clickable Link to Public Storefront) */}
-          <div className="flex items-center justify-between pb-6 border-b border-zinc-800">
+          <div className="flex items-center justify-between pb-6 border-b" style={{ borderColor: 'var(--theme-border-color, rgba(255,255,255,0.15))' }}>
             <Link href="/" className="group cursor-pointer block" title="Visit Storefront Website">
-              <span className="text-[9px] font-bold uppercase tracking-[0.3em] text-[#C5A880] group-hover:underline block">
+              <span className="text-[9px] font-bold uppercase tracking-[0.3em] group-hover:underline block" style={{ color: 'var(--theme-primary, #C5A880)' }}>
                 {siteSettings?.tagline}
               </span>
-              <h1 className="font-serif text-2xl font-bold text-white tracking-wider uppercase flex items-center gap-2 group-hover:text-[#C5A880] transition-colors">
-               {siteSettings?.siteName} <ExternalLink className="w-4 h-4 text-[#C5A880]" />
+              <h1 className="font-serif text-2xl font-bold tracking-wider uppercase flex items-center gap-2 group-hover:opacity-80 transition-colors">
+               {siteSettings?.siteName} <ExternalLink className="w-4 h-4" style={{ color: 'var(--theme-primary, #C5A880)' }} />
               </h1>
-              <p className="text-[11px] text-gray-400 mt-0.5">Admin Management Console</p>
+              <p className="text-[11px] opacity-70 mt-0.5">Admin Management Console</p>
             </Link>
             <button
               onClick={() => setMobileSidebarOpen(false)}
-              className="lg:hidden text-gray-400 hover:text-white"
+              className="lg:hidden opacity-70 hover:opacity-100"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* User Badge */}
-          <div className="p-3 bg-zinc-900/80 rounded-2xl border border-zinc-800 flex items-center justify-between">
+          <div className="p-3 rounded-2xl border flex items-center justify-between" style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'var(--theme-border-color, rgba(255,255,255,0.12))' }}>
             <div className="flex items-center gap-2.5 overflow-hidden">
-              <div className="w-8 h-8 rounded-full bg-[#C5A880] text-black font-bold text-xs flex items-center justify-center shrink-0">
+              <div className="w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center shrink-0 shadow-sm" style={{ backgroundColor: 'var(--theme-primary, #C5A880)', color: '#000000' }}>
                 HF
               </div>
               <div className="truncate">
-                <span className="text-xs font-bold text-white block truncate">{authEmail}</span>
+                <span className="text-xs font-bold block truncate">{authEmail}</span>
                 <span className="text-[10px] text-green-400 font-semibold flex items-center gap-1">
                   <CheckCircle className="w-2.5 h-2.5" /> Admin
                 </span>
@@ -1085,20 +1120,84 @@ export default function AdminClient({
             </div>
           </div>
 
-          <span className="text-[9px] font-bold tracking-[0.3em] text-zinc-600 uppercase px-1">Manage</span>
+          <span className="text-[9px] font-bold tracking-[0.3em] uppercase px-1 opacity-50">Manage</span>
           <nav className="space-y-1">
             {navMenuItems.map((item) => {
               const Icon = item.icon;
-              const isActive = activeTab === item.id;
+              const isDirectActive = activeTab === item.id;
+              const isSubcategoryGroup = item.id === 'subcategories';
+              const isActive = isSubcategoryGroup ? (activeTab === 'subcategories' || activeTab === 'properties') : isDirectActive;
+
+              if (isSubcategoryGroup) {
+                return (
+                  <div key={item.id} className="space-y-1">
+                    <button
+                      onClick={() => handleTabClick('subcategories')}
+                      className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        isActive ? 'shadow-lg font-extrabold scale-[1.02]' : 'hover:bg-white/10'
+                      }`}
+                      style={
+                        isActive
+                          ? { backgroundColor: 'var(--theme-primary, #C5A880)', color: '#000000' }
+                          : { color: 'var(--theme-header-text, #FFFFFF)', opacity: 0.8 }
+                      }
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon className="w-4 h-4" />
+                        <span>{item.label}</span>
+                      </div>
+                      <span className="text-[10px] opacity-70">▾</span>
+                    </button>
+
+                    {/* Sub-menu items for Sub-Categories */}
+                    <div className="pl-6 space-y-1">
+                      <button
+                        onClick={() => handleTabClick('subcategories')}
+                        className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${
+                          activeTab === 'subcategories'
+                            ? 'bg-white/20 text-white font-extrabold'
+                            : 'text-white/70 hover:bg-white/10'
+                        }`}
+                      >
+                        <Tag className="w-3.5 h-3.5" />
+                        <span>Styles & Sub-Categories</span>
+                      </button>
+                      <button
+                        onClick={() => handleTabClick('properties')}
+                        className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${
+                          activeTab === 'properties'
+                            ? 'bg-white/20 text-white font-extrabold'
+                            : 'text-white/70 hover:bg-white/10'
+                        }`}
+                      >
+                        <SlidersHorizontal className="w-3.5 h-3.5" />
+                        <span>Attribute Manager</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
               return (
                 <button
                   key={item.id}
                   onClick={() => handleTabClick(item.id as any)}
                   className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
                     isActive
-                      ? 'bg-[#C5A880] text-black shadow-lg font-extrabold'
-                      : 'text-gray-400 hover:bg-zinc-900 hover:text-white'
+                      ? 'shadow-lg font-extrabold scale-[1.02]'
+                      : 'hover:bg-white/10'
                   }`}
+                  style={
+                    isActive
+                      ? {
+                          backgroundColor: 'var(--theme-primary, #C5A880)',
+                          color: '#000000',
+                        }
+                      : {
+                          color: 'var(--theme-header-text, #FFFFFF)',
+                          opacity: 0.8,
+                        }
+                  }
                 >
                   <div className="flex items-center gap-3">
                     <Icon className="w-4 h-4" />
@@ -1107,7 +1206,7 @@ export default function AdminClient({
                   {item.badge !== undefined && (
                     <span
                       className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        isActive ? 'bg-black text-white' : 'bg-zinc-800 text-gray-300'
+                        isActive ? 'bg-black text-white' : 'bg-black/30 text-white'
                       }`}
                     >
                       {item.badge}
@@ -1121,10 +1220,11 @@ export default function AdminClient({
         </div>
 
         {/* Sidebar Footer Actions */}
-        <div className="pt-6 border-t border-zinc-800 space-y-3">
+        <div className="pt-6 border-t space-y-3" style={{ borderColor: 'var(--theme-border-color, rgba(255,255,255,0.15))' }}>
           <Link
             href="/"
-            className="w-full py-2.5 px-4 bg-zinc-900 hover:bg-[#C5A880] hover:text-black text-gray-300 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
+            className="w-full py-2.5 px-4 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition-colors hover:opacity-90"
+            style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'var(--theme-header-text, #FFFFFF)' }}
           >
             <ExternalLink className="w-3.5 h-3.5" />
             <span>Go to Storefront Website</span>
@@ -1373,10 +1473,10 @@ export default function AdminClient({
                                 {p.badgeText}
                               </span>
                             )}
-                            {p.isNew && (
+                            {p.isNew && (!p.badgeText || p.badgeText.toUpperCase() !== 'NEW') && (
                               <span className="bg-black text-white text-[9px] font-bold px-2 py-0.5 rounded">NEW</span>
                             )}
-                            {p.isSale && (
+                            {p.isSale && (!p.badgeText || p.badgeText.toUpperCase() !== 'SALE') && (
                               <span className="bg-red-600 text-white text-[9px] font-bold px-2 py-0.5 rounded">SALE</span>
                             )}
                           </td>
@@ -1495,6 +1595,24 @@ export default function AdminClient({
         {/* SUBCATEGORIES & STYLE FILTERS MANAGEMENT TAB */}
         {activeTab === 'subcategories' && (
           <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Sub-menu Tab Toggle Bar */}
+            <div className="flex items-center gap-2 border-b border-gray-200 pb-3">
+              <button
+                onClick={() => setActiveTab('subcategories')}
+                className="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 bg-[#1A1A1A] text-white shadow-xs"
+              >
+                <Tag className="w-3.5 h-3.5" />
+                <span>Styles &amp; Sub-Categories</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('properties')}
+                className="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 bg-gray-100 text-gray-600 hover:bg-gray-200"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                <span>Attribute Manager (Properties)</span>
+              </button>
+            </div>
+
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
               <div>
                 <h2 className="font-serif text-3xl font-bold text-[#1A1A1A]">Sub-Categories & Style Filters</h2>
@@ -1618,7 +1736,25 @@ export default function AdminClient({
 
         {/* PRODUCT PROPERTIES STUDIO TAB (METADATA-DRIVEN SCHEMA MANAGER) */}
         {activeTab === 'properties' && (
-          <div className="space-y-8 animate-in fade-in duration-300">
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Sub-menu Tab Toggle Bar */}
+            <div className="flex items-center gap-2 border-b border-gray-200 pb-3">
+              <button
+                onClick={() => setActiveTab('subcategories')}
+                className="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 bg-gray-100 text-gray-600 hover:bg-gray-200"
+              >
+                <Tag className="w-3.5 h-3.5" />
+                <span>Styles &amp; Sub-Categories</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('properties')}
+                className="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 bg-[#1A1A1A] text-white shadow-xs"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                <span>Attribute Manager (Properties)</span>
+              </button>
+            </div>
+
             {/* Header section */}
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white p-6 rounded-3xl border border-[#E7E2DA] shadow-2xs">
               <div>
@@ -1909,17 +2045,6 @@ export default function AdminClient({
                   </div>
                 </div>
 
-                <div>
-                  <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                    Top Announcement Bar Message
-                  </label>
-                  <input
-                    type="text"
-                    value={siteForm.announcementBar || ''}
-                    onChange={(e) => setSiteForm({ ...siteForm, announcementBar: e.target.value })}
-                    className="w-full px-3 py-2.5 border rounded-xl"
-                  />
-                </div>
 
                 <div>
                   <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
@@ -2312,17 +2437,45 @@ export default function AdminClient({
                   </button>
                 </div>
 
-                <div>
-                  <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
-                    Instagram Account Handle
-                  </label>
-                  <input
-                    type="text"
-                    value={siteForm.instagramHandle || ''}
-                    onChange={(e) => setSiteForm({ ...siteForm, instagramHandle: e.target.value })}
-                    placeholder="@HIWI.FASHION"
-                    className="w-full px-3 py-2.5 border rounded-xl font-bold text-purple-600"
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                      Instagram Kicker Subtitle
+                    </label>
+                    <input
+                      type="text"
+                      value={siteForm.instagramSubtitle || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, instagramSubtitle: e.target.value })}
+                      placeholder="EDITORIAL COMMUNITY"
+                      className="w-full px-3 py-2.5 border rounded-xl font-bold text-purple-600 uppercase tracking-wider"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                      Instagram Section Title
+                    </label>
+                    <input
+                      type="text"
+                      value={siteForm.instagramTitle || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, instagramTitle: e.target.value })}
+                      placeholder="Follow Hiwi Fashion on Instagram"
+                      className="w-full px-3 py-2.5 border rounded-xl font-bold text-purple-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                      Instagram Account Handle
+                    </label>
+                    <input
+                      type="text"
+                      value={siteForm.instagramHandle || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, instagramHandle: e.target.value })}
+                      placeholder="@HIWI.FASHION"
+                      className="w-full px-3 py-2.5 border rounded-xl font-bold text-purple-600"
+                    />
+                  </div>
                 </div>
 
                 {/* Photo Grid with Direct Uploads per item */}
@@ -2465,33 +2618,804 @@ export default function AdminClient({
           </div>
         )}
 
-        {/* COMPREHENSIVE ADD & EDIT PRODUCT FORM MODAL */}
-        {showProductModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-6 overflow-y-auto">
-            <div className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl p-5 sm:p-8 space-y-0 my-auto max-h-[85vh] sm:max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-200">
-              
-{/* Page Header */}
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 pb-5 border-b border-gray-100">
-                <div className="flex items-start gap-3">
-                  <button
-                    type="button"
-                    onClick={closeAtelier}
-                    className="mt-0.5 p-2 -ml-2 rounded-xl text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors shrink-0"
-                    title="Back to Products"
-                  >
-                    <ChevronLeft className="w-5 h-5" />
-                  </button>
-                  <div>
-                    <span className="adm-kicker">Products</span>
-                    <h3 className="font-serif text-xl text-[#1A1A1A] leading-tight mt-0.5">Product Atelier</h3>
-                    <p className="text-[11px] text-gray-400 mt-0.5">
-                      {editingProductId ? 'Edit and configure this product' : 'Create and configure a new product'}
-                    </p>
+        {/* APP THEME CUSTOMIZER TAB */}
+        {activeTab === 'theme' && (
+          <div className="space-y-8 animate-in fade-in duration-300">
+            {/* Header */}
+            <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#E7E2DA] shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div className="flex items-center gap-3">
+                <span className="p-3 rounded-2xl bg-purple-100 text-purple-700 shrink-0">
+                  <Palette className="w-7 h-7" />
+                </span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-serif text-2xl sm:text-3xl font-bold text-[#1A1A1A]">
+                      App Theme & Color Customizer
+                    </h2>
+                    <span className="px-2.5 py-1 bg-[#C5A880]/15 text-[#A88B64] border border-[#C5A880]/30 rounded-full text-[11px] font-bold">
+                      Active: {THEME_PRESETS.find((p) => p.id === (siteForm.themePresetName || 'royal_gold'))?.name || 'Royal Habesha Gold'}
+                    </span>
                   </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Customize primary accents, header navigation, card surfaces, card text, product detail card buttons, and background tones.
+                  </p>
                 </div>
               </div>
 
-              <form onSubmit={handleSaveProduct} className="space-y-8">
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const defaultPreset = THEME_PRESETS.find((p) => p.id === 'royal_gold');
+                    if (defaultPreset) handleApplyThemePreset(defaultPreset);
+                  }}
+                  className="px-4 py-2.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset to Default</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveSiteSettings}
+                  disabled={siteSaving}
+                  className="px-5 py-2.5 bg-[#1A1A1A] text-white hover:bg-[#C5A880] hover:text-black rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-md disabled:opacity-50"
+                >
+                  {siteSaving ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin text-[#C5A880]" />
+                      <span>Saving Theme...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 text-[#C5A880]" />
+                      <span>Save Theme Changes</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* CURATED 1-CLICK THEME PRESETS */}
+            <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#E7E2DA] shadow-xs space-y-4">
+              <div>
+                <h3 className="font-bold text-sm text-[#1A1A1A] uppercase tracking-wider flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-[#C5A880]" /> 1-Click Curated Theme Presets
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Select a designer-crafted color palette to instantly re-theme the store cards, header, buttons, and background
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {THEME_PRESETS.map((preset) => {
+                  const isSelected = (siteForm.themePresetName || 'royal_gold') === preset.id;
+                  const isDefault = preset.id === 'royal_gold';
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => handleApplyThemePreset(preset)}
+                      className={`text-left p-4 rounded-2xl border transition-all relative overflow-hidden flex flex-col justify-between space-y-3 ${
+                        isSelected
+                          ? 'border-[#C5A880] ring-2 ring-[#C5A880]/30 bg-[#FAF8F5]/80 shadow-md'
+                          : 'border-[#E7E2DA] hover:border-gray-400 bg-white hover:bg-[#FAF8F5]/50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-xs text-[#1A1A1A]">{preset.name}</span>
+                          {isDefault && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded">
+                              DEFAULT
+                            </span>
+                          )}
+                        </div>
+                        {isSelected && (
+                          <span className="w-5 h-5 rounded-full bg-[#C5A880] text-white flex items-center justify-center shrink-0">
+                            <Check className="w-3 h-3" />
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-[11px] text-gray-500 leading-snug">{preset.description}</p>
+
+                      {/* Color Swatch Circles */}
+                      <div className="flex items-center gap-2 pt-1">
+                        {preset.previewColors.map((hex, idx) => (
+                          <span
+                            key={idx}
+                            className="w-6 h-6 rounded-full border border-black/10 shadow-xs"
+                            style={{ backgroundColor: hex }}
+                            title={hex}
+                          />
+                        ))}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* COLOR CUSTOMIZATION & LIVE PREVIEW GRID */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* LEFT & CENTER: COLOR PICKERS (2 Columns) */}
+              <div className="lg:col-span-2 space-y-6">
+                
+                {/* SECTION 1: BRAND & CORE ACCENTS */}
+                <div className="bg-white p-6 rounded-3xl border border-[#E7E2DA] shadow-xs space-y-4">
+                  <h4 className="font-bold text-xs text-[#1A1A1A] uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-[#E7E2DA]">
+                    <Paintbrush className="w-4 h-4 text-[#C5A880]" /> 1. Brand & Core Accent Colors
+                  </h4>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* Primary Accent */}
+                    <div className="space-y-1.5 p-3 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA]">
+                      <label className="text-[11px] font-bold text-gray-700 block">Primary Accent</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={siteForm.themePrimaryColor || '#C5A880'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themePrimaryColor: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-9 h-9 rounded-xl cursor-pointer border border-gray-300 p-0.5 shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={siteForm.themePrimaryColor || '#C5A880'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themePrimaryColor: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-full px-2.5 py-1.5 text-xs font-mono border rounded-xl"
+                        />
+                      </div>
+                      <span className="text-[10px] text-gray-400 block">Main gold/brand highlights</span>
+                    </div>
+
+                    {/* Secondary Brand */}
+                    <div className="space-y-1.5 p-3 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA]">
+                      <label className="text-[11px] font-bold text-gray-700 block">Secondary Accent</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={siteForm.themeSecondaryColor || '#1A1A1A'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeSecondaryColor: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-9 h-9 rounded-xl cursor-pointer border border-gray-300 p-0.5 shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={siteForm.themeSecondaryColor || '#1A1A1A'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeSecondaryColor: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-full px-2.5 py-1.5 text-xs font-mono border rounded-xl"
+                        />
+                      </div>
+                      <span className="text-[10px] text-gray-400 block">Secondary headers & dark tones</span>
+                    </div>
+
+                    {/* Sale Badge */}
+                    <div className="space-y-1.5 p-3 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA]">
+                      <label className="text-[11px] font-bold text-gray-700 block">Global Badge Highlight</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={siteForm.themeBadgeBg || '#DC2626'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeBadgeBg: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-9 h-9 rounded-xl cursor-pointer border border-gray-300 p-0.5 shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={siteForm.themeBadgeBg || '#DC2626'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeBadgeBg: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-full px-2.5 py-1.5 text-xs font-mono border rounded-xl"
+                        />
+                      </div>
+                      <span className="text-[10px] text-gray-400 block">Discounts & stock badges</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* SECTION 2: HEADER & NAVIGATION */}
+                <div className="bg-white p-6 rounded-3xl border border-[#E7E2DA] shadow-xs space-y-4">
+                  <h4 className="font-bold text-xs text-[#1A1A1A] uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-[#E7E2DA]">
+                    <Sliders className="w-4 h-4 text-blue-600" /> 2. Header & Top Bar Navigation
+                  </h4>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Header Background */}
+                    <div className="space-y-1.5 p-3 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA]">
+                      <label className="text-[11px] font-bold text-gray-700 block">Header Navigation Background</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={siteForm.themeHeaderBg || '#1A1A1A'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeHeaderBg: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-9 h-9 rounded-xl cursor-pointer border border-gray-300 p-0.5 shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={siteForm.themeHeaderBg || '#1A1A1A'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeHeaderBg: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-full px-2.5 py-1.5 text-xs font-mono border rounded-xl"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Header Text Color */}
+                    <div className="space-y-1.5 p-3 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA]">
+                      <label className="text-[11px] font-bold text-gray-700 block">Header Text & Links Color</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={siteForm.themeHeaderTextColor || '#FFFFFF'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeHeaderTextColor: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-9 h-9 rounded-xl cursor-pointer border border-gray-300 p-0.5 shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={siteForm.themeHeaderTextColor || '#FFFFFF'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeHeaderTextColor: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-full px-2.5 py-1.5 text-xs font-mono border rounded-xl"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Announcement Bar BG */}
+                    <div className="space-y-1.5 p-3 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA]">
+                      <label className="text-[11px] font-bold text-gray-700 block">Announcement Bar Background</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={siteForm.themeAnnouncementBg || '#1A1A1A'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeAnnouncementBg: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-9 h-9 rounded-xl cursor-pointer border border-gray-300 p-0.5 shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={siteForm.themeAnnouncementBg || '#1A1A1A'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeAnnouncementBg: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-full px-2.5 py-1.5 text-xs font-mono border rounded-xl"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Announcement Bar Text */}
+                    <div className="space-y-1.5 p-3 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA]">
+                      <label className="text-[11px] font-bold text-gray-700 block">Announcement Bar Text Color</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={siteForm.themeAnnouncementTextColor || '#C5A880'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeAnnouncementTextColor: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-9 h-9 rounded-xl cursor-pointer border border-gray-300 p-0.5 shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={siteForm.themeAnnouncementTextColor || '#C5A880'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeAnnouncementTextColor: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-full px-2.5 py-1.5 text-xs font-mono border rounded-xl"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* SECTION 3: PRODUCT & CONTENT CARD DETAIL STYLING */}
+                <div className="bg-white p-6 rounded-3xl border border-[#E7E2DA] shadow-xs space-y-4">
+                  <h4 className="font-bold text-xs text-[#1A1A1A] uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-[#E7E2DA]">
+                    <Layers className="w-4 h-4 text-emerald-600" /> 3. Detailed Product Card Theme Settings
+                  </h4>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* Card Surface BG */}
+                    <div className="space-y-1.5 p-3 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA]">
+                      <label className="text-[11px] font-bold text-gray-700 block">Card Surface Background</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={siteForm.themeCardBg || '#FFFFFF'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeCardBg: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-9 h-9 rounded-xl cursor-pointer border border-gray-300 p-0.5 shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={siteForm.themeCardBg || '#FFFFFF'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeCardBg: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-full px-2.5 py-1.5 text-xs font-mono border rounded-xl"
+                        />
+                      </div>
+                      <span className="text-[10px] text-gray-400 block">Product card background</span>
+                    </div>
+
+                    {/* Card Title Text Color */}
+                    <div className="space-y-1.5 p-3 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA]">
+                      <label className="text-[11px] font-bold text-gray-700 block">Card Title & Text Color</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={siteForm.themeCardTextColor || siteForm.themeTextPrimary || '#1A1A1A'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeCardTextColor: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-9 h-9 rounded-xl cursor-pointer border border-gray-300 p-0.5 shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={siteForm.themeCardTextColor || siteForm.themeTextPrimary || '#1A1A1A'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeCardTextColor: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-full px-2.5 py-1.5 text-xs font-mono border rounded-xl"
+                        />
+                      </div>
+                      <span className="text-[10px] text-gray-400 block">Card heading & price</span>
+                    </div>
+
+                    {/* Card Muted Text Color */}
+                    <div className="space-y-1.5 p-3 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA]">
+                      <label className="text-[11px] font-bold text-gray-700 block">Card Muted Text Color</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={siteForm.themeCardMutedText || siteForm.themeTextMuted || '#666059'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeCardMutedText: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-9 h-9 rounded-xl cursor-pointer border border-gray-300 p-0.5 shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={siteForm.themeCardMutedText || siteForm.themeTextMuted || '#666059'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeCardMutedText: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-full px-2.5 py-1.5 text-xs font-mono border rounded-xl"
+                        />
+                      </div>
+                      <span className="text-[10px] text-gray-400 block">Original price & ratings</span>
+                    </div>
+
+                    {/* Card Border Color */}
+                    <div className="space-y-1.5 p-3 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA]">
+                      <label className="text-[11px] font-bold text-gray-700 block">Card Border & Divider</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={siteForm.themeCardBorderColor || siteForm.themeBorderColor || '#E7E2DA'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeCardBorderColor: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-9 h-9 rounded-xl cursor-pointer border border-gray-300 p-0.5 shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={siteForm.themeCardBorderColor || siteForm.themeBorderColor || '#E7E2DA'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeCardBorderColor: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-full px-2.5 py-1.5 text-xs font-mono border rounded-xl"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Card Badge Highlight */}
+                    <div className="space-y-1.5 p-3 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA]">
+                      <label className="text-[11px] font-bold text-gray-700 block">Card Badge Highlight</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={siteForm.themeCardBadgeBg || siteForm.themeBadgeBg || '#DC2626'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeCardBadgeBg: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-9 h-9 rounded-xl cursor-pointer border border-gray-300 p-0.5 shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={siteForm.themeCardBadgeBg || siteForm.themeBadgeBg || '#DC2626'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeCardBadgeBg: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-full px-2.5 py-1.5 text-xs font-mono border rounded-xl"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Card CTA Button BG */}
+                    <div className="space-y-1.5 p-3 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA]">
+                      <label className="text-[11px] font-bold text-gray-700 block">Card Action Button BG</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={siteForm.themeCardButtonBg || siteForm.themeButtonBg || '#1A1A1A'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeCardButtonBg: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-9 h-9 rounded-xl cursor-pointer border border-gray-300 p-0.5 shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={siteForm.themeCardButtonBg || siteForm.themeButtonBg || '#1A1A1A'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeCardButtonBg: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-full px-2.5 py-1.5 text-xs font-mono border rounded-xl"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* SECTION 4: APP CANVAS BACKGROUND & TYPOGRAPHY */}
+                <div className="bg-white p-6 rounded-3xl border border-[#E7E2DA] shadow-xs space-y-4">
+                  <h4 className="font-bold text-xs text-[#1A1A1A] uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-[#E7E2DA]">
+                    <ShoppingBag className="w-4 h-4 text-purple-600" /> 4. App Canvas Background & Global Typography
+                  </h4>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* App Background */}
+                    <div className="space-y-1.5 p-3 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA]">
+                      <label className="text-[11px] font-bold text-gray-700 block">App Canvas Background</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={siteForm.themeAppBg || '#F9F7F4'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeAppBg: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-9 h-9 rounded-xl cursor-pointer border border-gray-300 p-0.5 shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={siteForm.themeAppBg || '#F9F7F4'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeAppBg: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-full px-2.5 py-1.5 text-xs font-mono border rounded-xl"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Text Primary */}
+                    <div className="space-y-1.5 p-3 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA]">
+                      <label className="text-[11px] font-bold text-gray-700 block">Main Text Heading Color</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={siteForm.themeTextPrimary || '#1A1A1A'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeTextPrimary: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-9 h-9 rounded-xl cursor-pointer border border-gray-300 p-0.5 shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={siteForm.themeTextPrimary || '#1A1A1A'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeTextPrimary: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-full px-2.5 py-1.5 text-xs font-mono border rounded-xl"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Text Muted */}
+                    <div className="space-y-1.5 p-3 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA]">
+                      <label className="text-[11px] font-bold text-gray-700 block">Secondary Muted Text Color</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={siteForm.themeTextMuted || '#666059'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeTextMuted: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-9 h-9 rounded-xl cursor-pointer border border-gray-300 p-0.5 shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={siteForm.themeTextMuted || '#666059'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...siteForm, themeTextMuted: val };
+                            setSiteForm(updated);
+                            updateSiteSettingsState(updated);
+                          }}
+                          className="w-full px-2.5 py-1.5 text-xs font-mono border rounded-xl"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* RIGHT COLUMN: LIVE INTERACTIVE PREVIEW CARD */}
+              <div className="space-y-4">
+                <div className="bg-white p-6 rounded-3xl border border-[#E7E2DA] shadow-xs sticky top-24 space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-[#E7E2DA]">
+                    <span className="text-xs font-bold text-[#1A1A1A] uppercase tracking-wider flex items-center gap-1.5">
+                      <Eye className="w-4 h-4 text-[#C5A880]" /> Storefront Live Preview
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-green-100 text-green-800 rounded-md">
+                      Live Dynamic Preview
+                    </span>
+                  </div>
+
+                  {/* PREVIEW CONTAINER WITH DYNAMIC STYLE OVERRIDES */}
+                  <div
+                    className="rounded-2xl border overflow-hidden p-3 space-y-3 transition-all"
+                    style={{
+                      backgroundColor: siteForm.themeAppBg || '#F9F7F4',
+                      borderColor: siteForm.themeBorderColor || '#E7E2DA',
+                    }}
+                  >
+                    {/* Dynamic Announcement Bar Preview */}
+                    <div
+                      className="p-2 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center justify-between"
+                      style={{
+                        backgroundColor: siteForm.themeAnnouncementBg || '#1A1A1A',
+                        color: siteForm.themeAnnouncementTextColor || '#C5A880',
+                      }}
+                    >
+                      <span>FREE DELIVERY OVER ETB 2,500</span>
+                      <Sparkles className="w-3 h-3" />
+                    </div>
+
+                    {/* Dynamic Header Preview */}
+                    <div
+                      className="p-3 rounded-xl border flex items-center justify-between"
+                      style={{
+                        backgroundColor: siteForm.themeHeaderBg || '#1A1A1A',
+                        color: siteForm.themeHeaderTextColor || '#FFFFFF',
+                        borderColor: siteForm.themeBorderColor || '#E7E2DA',
+                      }}
+                    >
+                      <span className="font-serif font-bold text-sm tracking-wider">
+                        {siteForm.siteName || 'HIWI FASHION'}
+                      </span>
+                      <div className="flex items-center gap-2 text-[10px] font-bold">
+                        <span style={{ color: siteForm.themePrimaryColor || '#C5A880' }}>Catalog</span>
+                        <span>Cart (2)</span>
+                      </div>
+                    </div>
+
+                    {/* Dynamic Product Card Preview */}
+                    <div
+                      className="p-4 rounded-2xl border space-y-3 shadow-sm transition-all"
+                      style={{
+                        backgroundColor: siteForm.themeCardBg || '#FFFFFF',
+                        borderColor: siteForm.themeCardBorderColor || siteForm.themeBorderColor || '#E7E2DA',
+                      }}
+                    >
+                      <div className="relative aspect-4/3 rounded-xl overflow-hidden bg-gray-100">
+                        <img
+                          src="https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&q=80&w=600"
+                          alt="Product Preview"
+                          className="w-full h-full object-cover"
+                        />
+                        {/* Sale Badge */}
+                        <span
+                          className="absolute top-2 left-2 text-[9px] font-bold uppercase px-2 py-0.5 rounded-md text-white shadow-xs"
+                          style={{ backgroundColor: siteForm.themeCardBadgeBg || siteForm.themeBadgeBg || '#DC2626' }}
+                        >
+                          20% OFF
+                        </span>
+                      </div>
+
+                      <div>
+                        <span
+                          className="text-[10px] font-bold uppercase tracking-wider block"
+                          style={{ color: siteForm.themePrimaryColor || '#C5A880' }}
+                        >
+                          Habesha Collection
+                        </span>
+                        <h4
+                          className="font-bold text-sm"
+                          style={{ color: siteForm.themeCardTextColor || siteForm.themeTextPrimary || '#1A1A1A' }}
+                        >
+                          Authentic Woven Kemis
+                        </h4>
+                        <p
+                          className="text-[11px]"
+                          style={{ color: siteForm.themeCardMutedText || siteForm.themeTextMuted || '#666059' }}
+                        >
+                          ETB 4,500 <span className="line-through opacity-50 ml-1">ETB 5,600</span>
+                        </p>
+                      </div>
+
+                      {/* Primary Button */}
+                      <button
+                        type="button"
+                        className="w-full py-2 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5"
+                        style={{
+                          backgroundColor: siteForm.themeCardButtonBg || siteForm.themeButtonBg || '#1A1A1A',
+                          color: siteForm.themeCardButtonTextColor || siteForm.themeButtonTextColor || '#FFFFFF',
+                        }}
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Order via Telegram</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-gray-400 text-center italic">
+                    Live changes re-theme the entire website dynamically upon selection.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* COMPREHENSIVE ADD & EDIT PRODUCT FORM FULL PAGE VIEW */}
+        {showProductModal && (
+          <div className="fixed inset-0 z-50 bg-[#F0FDF4] overflow-y-auto p-3 sm:p-6 md:p-10 transition-all animate-in fade-in duration-200" style={{ backgroundColor: 'var(--theme-app-bg, #F0FDF4)' }}>
+            <div className="max-w-5xl mx-auto bg-white rounded-3xl border shadow-xl p-5 sm:p-8 lg:p-10 space-y-8" style={{ borderColor: 'var(--theme-border-color, #A7F3D0)' }}>
+              
+              {/* Page Navigation & Actions Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-gray-100">
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={closeAtelier}
+                    className="p-2.5 rounded-2xl bg-gray-50 border border-gray-200 text-gray-700 hover:text-black hover:bg-gray-100 transition-colors shrink-0 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider"
+                    title="Back to Products List"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    <span>Back to Products</span>
+                  </button>
+                  <div>
+                    <span className="adm-kicker">Product Atelier Page</span>
+                    <h2 className="font-serif text-2xl font-bold text-[#1A1A1A] mt-0.5">
+                      {editingProductId ? `Edit Product: ${pName || 'Untitled'}` : 'Create New Product'}
+                    </h2>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      {editingProductId ? 'Configure item specifications, variants, gallery & dynamic attributes' : 'Fill in item specifications, upload gallery images & publish to catalog'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={closeAtelier}
+                    className="px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    form="product-atelier-form"
+                    disabled={loading}
+                    className="px-6 py-2.5 rounded-xl bg-[#1A1A1A] text-white text-xs font-bold uppercase tracking-wider hover:bg-[#C5A880] hover:text-black transition-colors shadow-md flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {loading && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                    <span>{editingProductId ? 'Update Product' : 'Create Product'}</span>
+                  </button>
+                </div>
+              </div>
+
+              <form id="product-atelier-form" onSubmit={handleSaveProduct} className="space-y-8">
 
                 {/* 01 BASIC INFORMATION */}
                 <section className="space-y-4">
@@ -2578,6 +3502,32 @@ export default function AdminClient({
                           </div>
                         );
                       })()}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+                    <div>
+                      <label className="block mb-1.5">Selling Price (ETB) *</label>
+                      <input type="number" min={0} required value={pPrice} onChange={(e) => setPPrice(e.target.value)}
+                        placeholder="e.g. 2500" className="w-full px-3.5 py-2.5 font-bold text-sm" />
+                    </div>
+                    <div>
+                      <label className="block mb-1.5">Original Price (ETB)</label>
+                      <input type="number" min={0} value={pOrigPrice} onChange={(e) => setPOrigPrice(e.target.value)}
+                        placeholder="Optional sale compare price" className="w-full px-3.5 py-2.5 text-gray-600" />
+                    </div>
+                    <div>
+                      <label className="block mb-1.5">Stock Quantity</label>
+                      <input type="number" min={0} value={pStock} onChange={(e) => setPStock(e.target.value)}
+                        placeholder="e.g. 15" className="w-full px-3.5 py-2.5 font-semibold" />
+                    </div>
+                    <div>
+                      <label className="block mb-1.5">Availability</label>
+                      <select value={pInStock ? 'true' : 'false'} onChange={(e) => setPInStock(e.target.value === 'true')}
+                        className="w-full px-3.5 py-2.5 font-semibold cursor-pointer">
+                        <option value="true">● In Stock</option>
+                        <option value="false">○ Out of Stock</option>
+                      </select>
                     </div>
                   </div>
                 </section>
@@ -2850,63 +3800,7 @@ export default function AdminClient({
                   )}
                 </section>
 
-                {/* 04 PRODUCT DESCRIPTION */}
-                <section className="space-y-4">
-                  <div className="adm-section-head">
-                    <span className="adm-kicker">04</span>
-                    <strong>Pricing &amp; Inventory</strong>
-                    {hasVariants && (
-                      <span className="ml-auto text-[10px] text-gray-400">managed per variant in 03</span>
-                    )}
-                  </div>
 
-                  {hasVariants ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="adm-card p-4 text-center">
-                        <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Combinations</p>
-                        <p className="text-xl font-bold text-[#1A1A1A] mt-1">{variantCombos.length}</p>
-                      </div>
-                      <div className="adm-card p-4 text-center">
-                        <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Catalog Price</p>
-                        <p className="text-xl font-bold text-[#1A1A1A] mt-1">
-                          ETB {(matrixPrices.length ? Math.min(...matrixPrices) : Number(pPrice) || 0).toLocaleString()}
-                        </p>
-                      </div>
-                      <div className="adm-card p-4 text-center">
-                        <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Total Stock</p>
-                        <p className="text-xl font-bold text-[#1A1A1A] mt-1">
-                          {matrixStocks.length ? matrixStocks.reduce((a, b) => a + b, 0) : 0}
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div>
-                        <label className="block mb-1.5">Selling Price (ETB) *</label>
-                        <input type="number" min={0} required value={pPrice} onChange={(e) => setPPrice(e.target.value)}
-                          placeholder="2500" className="w-full px-3.5 py-2.5 font-bold text-sm" />
-                      </div>
-                      <div>
-                        <label className="block mb-1.5">Original Price</label>
-                        <input type="number" min={0} value={pOrigPrice} onChange={(e) => setPOrigPrice(e.target.value)}
-                          placeholder="Optional — sale badge" className="w-full px-3.5 py-2.5 text-gray-600" />
-                      </div>
-                      <div>
-                        <label className="block mb-1.5">Stock Quantity</label>
-                        <input type="number" min={0} value={pStock} onChange={(e) => setPStock(e.target.value)}
-                          placeholder="15" className="w-full px-3.5 py-2.5 font-semibold" />
-                      </div>
-                      <div>
-                        <label className="block mb-1.5">Availability</label>
-                        <select value={pInStock ? 'true' : 'false'} onChange={(e) => setPInStock(e.target.value === 'true')}
-                          className="w-full px-3.5 py-2.5 font-semibold cursor-pointer">
-                          <option value="true">● In Stock</option>
-                          <option value="false">○ Out of Stock</option>
-                        </select>
-                      </div>
-                    </div>
-                  )}
-                </section>
 
                 {/* 05 PRODUCT DESCRIPTION */}
                 <section className="space-y-4">
@@ -3099,30 +3993,22 @@ export default function AdminClient({
                   })()}
                 </section>
 
-                {/* STICKY ACTION BAR */}
-                <div className="sticky bottom-0 -mx-5 sm:-mx-8 px-5 sm:px-8 py-3.5 bg-white/95 backdrop-blur border-t border-gray-100 flex flex-col-reverse sm:flex-row justify-end items-stretch sm:items-center gap-2 z-10">
+                {/* FORM ACTION BAR */}
+                <div className="pt-6 border-t border-gray-100 flex flex-col-reverse sm:flex-row justify-end items-stretch sm:items-center gap-3">
                   <button
                     type="button"
                     onClick={closeAtelier}
-                    className="px-4 py-2.5 rounded-xl text-xs font-bold text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-colors order-last sm:order-first"
+                    className="px-5 py-3 rounded-xl border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
-                    type="button"
-                    disabled={loading}
-                    onClick={(e) => handleSaveProduct(e as unknown as React.FormEvent, true)}
-                    className="px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-700 hover:border-[#C5A880] disabled:opacity-50"
-                  >
-                    Save Draft
-                  </button>
-                  <button
                     type="submit"
                     disabled={loading}
-                    className="px-6 py-2.5 rounded-xl bg-[#1A1A1A] text-white text-xs font-bold hover:bg-[#C5A880] hover:text-black transition-colors shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="px-8 py-3 rounded-xl bg-[#1A1A1A] text-white text-xs font-bold uppercase tracking-wider hover:bg-[#C5A880] hover:text-black transition-colors shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
                   >
-                    {loading && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                    {editingProductId ? 'Update Product' : 'Create Product'}
+                    {loading && <RefreshCw className="w-4 h-4 animate-spin" />}
+                    <span>{editingProductId ? 'Update Product' : 'Create Product'}</span>
                   </button>
                 </div>
               </form>

@@ -43,6 +43,38 @@ export const Header: React.FC = () => {
   const [tempTg, setTempTg] = useState(telegramUsername);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
 
+  // Scroll direction detection for scroll-up sticky header
+  const [showHeader, setShowHeader] = useState(true);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    let lastScrollY = typeof window !== 'undefined' ? window.scrollY : 0;
+
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+
+      if (currentScrollY > 50) {
+        setIsScrolled(true);
+      } else {
+        setIsScrolled(false);
+        setShowHeader(true);
+        lastScrollY = currentScrollY;
+        return;
+      }
+
+      if (currentScrollY > lastScrollY && currentScrollY > 140) {
+        setShowHeader(false); // Hide when scrolling down
+      } else if (currentScrollY < lastScrollY) {
+        setShowHeader(true); // Reveal when scrolling up
+      }
+
+      lastScrollY = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const wishlistCount = wishlist.length;
 
@@ -68,27 +100,24 @@ export const Header: React.FC = () => {
   const navLinks = [
     { name: t('navHome'), href: '/' },
     { name: t('navCatalog'), href: '/catalog' },
-    { name: t('navDresses'), href: '/catalog?category=dresses' },
-    { name: t('navTops'), href: '/catalog?category=tops' },
-    { name: t('navNetela'), href: '/catalog?category=accessories' },
-    { name: t('navShoes'), href: '/catalog?category=shoes' },
   ];
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-[#E7E2DA]">
-      {/* Top Dynamic Announcement Bar */}
-      <div className="bg-[#1A1A1A] text-[#FAF8F5] text-[11px] font-medium py-2 px-4 tracking-wider uppercase flex items-center justify-between">
-        <div className="mx-auto flex items-center gap-6 overflow-hidden whitespace-nowrap text-center">
-          <span className="flex items-center gap-1.5 text-[#C5A880]">
-            <Sparkles className="w-3 h-3" /> {siteSettings.announcementBar || t('announcementDefault')}
-          </span>
-          <span className="hidden md:inline text-gray-500">|</span>
-          <span className="flex items-center gap-1">
-            <Send className="w-3 h-3 text-[#0088cc]" /> {t('announcementSub')} @{telegramUsername}
-          </span>
-        </div>
-      </div>
-
+    <>
+      <header
+        className={`fixed top-0 left-0 right-0 z-40 transition-all duration-500 ease-in-out ${
+          showHeader ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
+        } ${
+          isScrolled
+            ? 'shadow-2xl backdrop-blur-xl border-b'
+            : 'border-b'
+        }`}
+        style={{
+          backgroundColor: 'var(--theme-header-bg, #FFFFFF)',
+          borderColor: 'var(--theme-border-color, #E7E2DA)',
+          color: 'var(--theme-header-text, #1A1A1A)',
+        }}
+      >
       {/* Main Header */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
@@ -97,7 +126,8 @@ export const Header: React.FC = () => {
           <div className="flex items-center lg:hidden">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 text-gray-700 hover:text-black focus:outline-none"
+              className="p-2 opacity-80 hover:opacity-100 focus:outline-none"
+              style={{ color: 'var(--theme-header-text, #1A1A1A)' }}
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -106,26 +136,36 @@ export const Header: React.FC = () => {
           {/* Dynamic Logo: Hiwi Fashion */}
           <div className="flex-1 lg:flex-initial text-center lg:text-left">
             <Link href="/" className="inline-block group">
-              <span className="font-serif text-2xl sm:text-3xl font-bold tracking-[0.2em] text-[#1A1A1A] group-hover:text-[#C5A880] transition-colors uppercase">
+              <span
+                className="font-serif text-2xl sm:text-3xl font-bold tracking-[0.2em] transition-colors uppercase block"
+                style={{ color: 'var(--theme-header-text, #1A1A1A)' }}
+              >
                 {siteSettings.siteName || 'Hiwi Fashion'}
               </span>
-              <span className="block text-[9px] tracking-[0.35em] text-gray-400 font-sans uppercase -mt-1">
+              <span
+                className="block text-[9px] tracking-[0.35em] font-sans uppercase -mt-1 font-bold"
+                style={{ color: 'var(--theme-primary, #10B981)' }}
+              >
                 {siteSettings.tagline || 'HABESHA & MODERN ATELIER'}
               </span>
             </Link>
           </div>
 
           {/* Navigation Links - Desktop */}
-          <nav className="hidden lg:flex items-center space-x-6">
+          <nav className="hidden lg:flex items-center space-x-8">
             {navLinks.map((link) => {
               const isActive = pathname === link.href;
               return (
                 <Link
                   key={link.name}
                   href={link.href}
-                  className={`text-xs font-semibold uppercase tracking-wider transition-colors hover:text-[#C5A880] relative py-1 flex items-center gap-1 ${
-                    isActive ? 'text-[#1A1A1A] font-bold border-b-2 border-[#1A1A1A]' : 'text-gray-600'
+                  className={`text-xs font-bold uppercase tracking-widest transition-colors relative py-1 flex items-center gap-1 opacity-85 hover:opacity-100 ${
+                    isActive ? 'border-b-2' : ''
                   }`}
+                  style={{
+                    color: isActive ? 'var(--theme-primary, #10B981)' : 'var(--theme-header-text, #1A1A1A)',
+                    borderColor: 'var(--theme-primary, #10B981)',
+                  }}
                 >
                   <span>{link.name}</span>
                 </Link>
@@ -135,38 +175,17 @@ export const Header: React.FC = () => {
 
           {/* Header Action Icons */}
           <div className="flex items-center space-x-2 sm:space-x-3">
-
-            {/* Language Selector Switcher (🇬🇧 EN / 🇪🇹 AM) */}
-            <div className="flex items-center bg-[#FAF8F5] border border-[#E7E2DA] rounded-full p-1 shadow-sm">
-              <button
-                onClick={() => setLanguage('en')}
-                className={`px-2.5 py-1 text-[11px] font-bold rounded-full transition-all ${
-                  language === 'en'
-                    ? 'bg-[#1A1A1A] text-white shadow-xs'
-                    : 'text-gray-500 hover:text-black'
-                }`}
-                title="English"
-              >
-                🇬🇧 EN
-              </button>
-              <button
-                onClick={() => setLanguage('am')}
-                className={`px-2.5 py-1 text-[11px] font-bold rounded-full transition-all ${
-                  language === 'am'
-                    ? 'bg-[#1A1A1A] text-white shadow-xs'
-                    : 'text-gray-500 hover:text-black'
-                }`}
-                title="አማርኛ (Amharic)"
-              >
-                🇪🇹 AM
-              </button>
-            </div>
             
             {/* CONDITIONAL "GO TO ADMIN" BUTTON (Only shown when admin session is active) */}
             {isAdminLoggedIn && (
               <Link
                 href="/admin"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1A1A1A] text-[#C5A880] text-xs font-bold hover:bg-[#C5A880] hover:text-black transition-all shadow-sm border border-[#C5A880]/40"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm border"
+                style={{
+                  backgroundColor: 'var(--theme-secondary, #064E3B)',
+                  color: 'var(--theme-primary, #10B981)',
+                  borderColor: 'var(--theme-primary, #10B981)',
+                }}
                 title="Go to Admin Dashboard"
               >
                 <ShieldCheck className="w-3.5 h-3.5" />
@@ -178,19 +197,24 @@ export const Header: React.FC = () => {
             <div className="relative">
               <button
                 onClick={() => setShowTgConfig(!showTgConfig)}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#0088cc]/10 text-[#0088cc] text-xs font-bold hover:bg-[#0088cc]/20 transition-all border border-[#0088cc]/20"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border"
+                style={{
+                  backgroundColor: 'var(--theme-card-bg, #FFFFFF)',
+                  color: 'var(--theme-text-primary, #064E3B)',
+                  borderColor: 'var(--theme-border-color, #A7F3D0)',
+                }}
                 title="Configure Telegram Seller Handle"
               >
-                <Send className="w-3.5 h-3.5" />
+                <Send className="w-3.5 h-3.5" style={{ color: 'var(--theme-primary, #10B981)' }} />
                 <span>@{telegramUsername}</span>
                 <ChevronDown className="w-3 h-3" />
               </button>
 
               {showTgConfig && (
-                <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-2xl border border-[#E7E2DA] p-4 z-50">
+                <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-2xl border p-4 z-50" style={{ borderColor: 'var(--theme-border-color, #A7F3D0)' }}>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-[#1A1A1A] uppercase tracking-wider flex items-center gap-1.5">
-                      <Send className="w-3.5 h-3.5 text-[#0088cc]" /> Telegram Seller Handle
+                    <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: 'var(--theme-text-primary, #064E3B)' }}>
+                      <Send className="w-3.5 h-3.5" style={{ color: 'var(--theme-primary, #10B981)' }} /> Telegram Seller Handle
                     </span>
                     <button onClick={() => setShowTgConfig(false)} className="text-gray-400 hover:text-black">
                       <X className="w-4 h-4" />
@@ -207,12 +231,17 @@ export const Header: React.FC = () => {
                         value={tempTg}
                         onChange={(e) => setTempTg(e.target.value)}
                         placeholder={process.env.NEXT_PUBLIC_TELEGRAM_USERNAME}
-                        className="w-full pl-7 pr-3 py-1.5 text-xs border border-[#E7E2DA] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0088cc] font-medium"
+                        className="w-full pl-7 pr-3 py-1.5 text-xs border rounded-lg focus:outline-none font-medium"
+                        style={{ borderColor: 'var(--theme-border-color, #A7F3D0)' }}
                       />
                     </div>
                     <button
                       type="submit"
-                      className="w-full py-2 bg-[#0088cc] text-white text-xs font-bold rounded-lg hover:bg-[#0077b3] transition-colors"
+                      className="w-full py-2 text-xs font-bold rounded-lg transition-colors shadow-xs"
+                      style={{
+                        backgroundColor: 'var(--theme-button-bg, #064E3B)',
+                        color: 'var(--theme-button-text, #FFFFFF)',
+                      }}
                     >
                       Save Handle
                     </button>
@@ -221,31 +250,38 @@ export const Header: React.FC = () => {
               )}
             </div>
 
-
-
-            {/* Wishlist */}
+            {/* Wishlist Icon */}
             <button
               onClick={() => setIsWishlistOpen(true)}
-              className="p-2 text-gray-700 hover:text-black transition-colors relative"
+              className="p-2.5 rounded-full border transition-all relative shadow-xs flex items-center justify-center hover:scale-105 active:scale-95"
+              style={{
+                backgroundColor: 'var(--theme-card-bg, #FFFFFF)',
+                color: '#EF4444',
+                borderColor: 'var(--theme-border-color, #A7F3D0)',
+              }}
               title="Saved Wishlist"
             >
-              <Heart className="w-5 h-5" />
+              <Heart className="w-5 h-5 fill-rose-500/20" />
               {wishlistCount > 0 && (
-                <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[#1A1A1A] text-white text-[10px] font-bold flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
                   {wishlistCount}
                 </span>
               )}
             </button>
 
-            {/* Cart */}
+            {/* Cart Icon */}
             <button
               onClick={() => setIsCartOpen(true)}
-              className="p-2.5 rounded-full bg-[#1A1A1A] text-white hover:bg-[#C5A880] transition-colors relative shadow-sm"
+              className="p-2.5 rounded-full transition-all relative shadow-md flex items-center justify-center hover:scale-105 active:scale-95"
+              style={{
+                backgroundColor: 'var(--theme-primary, #10B981)',
+                color: '#FFFFFF',
+              }}
               title="Shopping Cart"
             >
               <ShoppingBag className="w-5 h-5" />
               {totalCartCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#0088cc] text-white text-[10px] font-extrabold flex items-center justify-center ring-2 ring-white">
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-extrabold flex items-center justify-center ring-2 ring-white shadow-sm">
                   {totalCartCount}
                 </span>
               )}
@@ -301,5 +337,7 @@ export const Header: React.FC = () => {
         </div>
       )}
     </header>
-  );
+    <div className="h-24 sm:h-28 w-full shrink-0 pointer-events-none" />
+  </>
+);
 };

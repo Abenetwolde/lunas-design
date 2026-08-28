@@ -161,6 +161,30 @@ export interface SiteSettings {
 
   // Dynamic Instagram Showcase
   instagramTitle?: string;
+  instagramSubtitle?: string;
   instagramHandle?: string;
   instagramImages?: string[];
+
+  // Dynamic App Theme Customizer Colors
+  themePrimaryColor?: string;
+  themeSecondaryColor?: string;
+  themeHeaderBg?: string;
+  themeHeaderTextColor?: string;
+  themeAppBg?: string;
+  themeCardBg?: string;
+  themeCardTextColor?: string;
+  themeCardMutedText?: string;
+  themeCardBorderColor?: string;
+  themeCardBadgeBg?: string;
+  themeCardButtonBg?: string;
+  themeCardButtonTextColor?: string;
+  themeButtonBg?: string;
+  themeButtonTextColor?: string;
+  themeBadgeBg?: string;
+  themeAnnouncementBg?: string;
+  themeAnnouncementTextColor?: string;
+  themeTextPrimary?: string;
+  themeTextMuted?: string;
+  themeBorderColor?: string;
+  themePresetName?: string;
 }

@@ -22,16 +22,22 @@ export const InstagramFeed: React.FC = () => {
   const igUrl = `https://instagram.com/${handle.replace('@', '')}`;
 
   return (
-    <section className="py-16 bg-white border-t border-[#E7E2DA]">
+    <section
+      className="py-12 sm:py-16 border-t transition-colors duration-300"
+      style={{
+        backgroundColor: 'var(--theme-card-bg, #FFFFFF)',
+        borderColor: 'var(--theme-border-color, #A7F3D0)',
+      }}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
           <div>
-            <span className="text-xs font-semibold uppercase tracking-[0.25em] text-[#C5A880]">
-              {t('editorialCommunity')}
+            <span className="text-xs font-semibold uppercase tracking-[0.25em]" style={{ color: 'var(--theme-primary, #10B981)' }}>
+              {siteSettings.instagramSubtitle || t('editorialCommunity')}
             </span>
-            <h3 className="font-serif text-2xl sm:text-3xl text-[#1A1A1A] font-light mt-0.5">
+            <h3 className="font-serif text-2xl sm:text-3xl font-light mt-0.5" style={{ color: 'var(--theme-text-primary, #064E3B)' }}>
               {siteSettings.instagramTitle || t('followInstagram')}
             </h3>
           </div>
@@ -39,22 +45,27 @@ export const InstagramFeed: React.FC = () => {
             href={igUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs font-bold uppercase tracking-widest text-[#1A1A1A] hover:text-[#C5A880] flex items-center gap-1.5 transition-colors"
+            className="text-xs font-bold uppercase tracking-widest flex items-center gap-1.5 transition-colors hover:opacity-80"
+            style={{ color: 'var(--theme-primary, #10B981)' }}
           >
-            <Camera className="w-4 h-4 text-[#C5A880]" />
+            <Camera className="w-4 h-4" />
             <span>{handle} →</span>
           </a>
         </div>
 
         {/* Photos grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
           {posts.map((src, idx) => (
             <a
               key={idx}
               href={igUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="group relative aspect-square rounded-xl overflow-hidden bg-[#FAF8F5] border border-[#E7E2DA]"
+              className="group relative aspect-square rounded-xl overflow-hidden border shadow-xs"
+              style={{
+                backgroundColor: 'var(--theme-app-bg, #F0FDF4)',
+                borderColor: 'var(--theme-border-color, #A7F3D0)',
+              }}
             >
               <img
                 src={src}
