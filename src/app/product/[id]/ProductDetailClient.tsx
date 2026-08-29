@@ -11,6 +11,7 @@ import {
   Heart,
   Star,
   ChevronRight,
+  ChevronLeft,
   MessageSquare,
   CheckCircle,
   User,
@@ -51,8 +52,6 @@ export default function ProductDetailClient({ product: initialProduct, relatedPr
   const totalAmount = product.price * quantity;
   const isInStock = product.inStock !== false;
 
-  // REAL review data only — average & count are derived from fetched reviews,
-  // never from seeded/mock product.rating or product.reviewsCount.
   const liveReviewsCount = reviewsList.length;
   const liveAvgRating =
     liveReviewsCount > 0
@@ -62,6 +61,44 @@ export default function ProductDetailClient({ product: initialProduct, relatedPr
   const galleryList = Array.from(
     new Set([product.image, product.secondaryImage, ...(product.images || [])].filter(Boolean) as string[])
   );
+
+  // Gallery Navigation & Touch Swipe Logic
+  const touchStartX = useRef<number | null>(null);
+  const touchEndX = useRef<number | null>(null);
+  const minSwipeDistance = 40;
+
+  const handleNextImage = () => {
+    if (galleryList.length <= 1) return;
+    const currentIndex = galleryList.indexOf(activeImage);
+    const nextIndex = currentIndex < 0 || currentIndex === galleryList.length - 1 ? 0 : currentIndex + 1;
+    setActiveImage(galleryList[nextIndex]);
+  };
+
+  const handlePrevImage = () => {
+    if (galleryList.length <= 1) return;
+    const currentIndex = galleryList.indexOf(activeImage);
+    const prevIndex = currentIndex <= 0 ? galleryList.length - 1 : currentIndex - 1;
+    setActiveImage(galleryList[prevIndex]);
+  };
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchEndX.current = null;
+    touchStartX.current = e.targetTouches[0].clientX;
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.targetTouches[0].clientX;
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStartX.current || !touchEndX.current) return;
+    const distance = touchStartX.current - touchEndX.current;
+    if (distance > minSwipeDistance) {
+      handleNextImage();
+    } else if (distance < -minSwipeDistance) {
+      handlePrevImage();
+    }
+  };
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
   const fullImageUrl = activeImage.startsWith('http') ? activeImage : `${baseUrl}${activeImage}`;
@@ -169,7 +206,12 @@ ${customerName ? `Customer Name: ${customerName}\n` : ''}${
           
           {/* Left Column: Image Gallery */}
           <div className="space-y-4">
-            <div className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden bg-[#FAF8F5] border border-[#E7E2DA]">
+            <div
+              className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden bg-[#FAF8F5] border border-[#E7E2DA] group select-none cursor-grab active:cursor-grabbing"
+              onTouchStart={onTouchStart}
+              onTouchMove={onTouchMove}
+              onTouchEnd={onTouchEnd}
+            >
               <img
                 src={activeImage}
                 alt={product.name}
@@ -177,6 +219,33 @@ ${customerName ? `Customer Name: ${customerName}\n` : ''}${
                   !isInStock ? 'grayscale opacity-80' : ''
                 }`}
               />
+
+              {/* Left & Right Arrow Buttons (Centered vertically on left & right sides) */}
+              {galleryList.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handlePrevImage}
+                    aria-label="Previous Image"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/85 hover:bg-white text-[#1A1A1A] shadow-md backdrop-blur-md flex items-center justify-center transition-all hover:scale-110 active:scale-95 border border-black/10"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleNextImage}
+                    aria-label="Next Image"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/85 hover:bg-white text-[#1A1A1A] shadow-md backdrop-blur-md flex items-center justify-center transition-all hover:scale-110 active:scale-95 border border-black/10"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+
+                  {/* Image Counter Indicator */}
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md text-white text-[10px] font-bold tracking-widest pointer-events-none">
+                    {galleryList.indexOf(activeImage) + 1} / {galleryList.length}
+                  </div>
+                </>
+              )}
 
               {/* Badges */}
               <div className="absolute top-4 left-4 flex flex-col gap-1.5 z-10">
@@ -631,7 +700,7 @@ ${customerName ? `Customer Name: ${customerName}\n` : ''}${
                 You May Also Like
               </h2>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-6">
               {relatedProducts.map((relProduct) => (
                 <ProductCard key={relProduct.id} product={relProduct} />
               ))}

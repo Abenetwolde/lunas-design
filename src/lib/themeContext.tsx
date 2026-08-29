@@ -29,7 +29,7 @@ interface ThemeContextType {
 // React Context
 // ---------------------------------------------------------------------------
 
-const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+const THEME_CONTEXT = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<ThemeConfig>({
@@ -45,7 +45,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   });
 
   const selectTheme = useCallback((id: string) => {
-    setTheme(prev => (prev.id === id ? prev : { ...prev, id }));
+    setTheme(prev => prev.id === id ? prev : { ...prev, id });
   }, []);
 
   const updateTheme = useCallback(async (changes: Partial<ThemeConfig>) => {
@@ -66,7 +66,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const resetToDefault = useCallback(() => {
     const defaultId = 'default';
-    setTheme(prev => (prev.id === defaultId ? prev : { ...prev, id: defaultId }));
+    setTheme(prev => ({ ...prev, id: defaultId }));
   }, []);
 
   const value = useMemo(
@@ -81,9 +81,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <ThemeContext.Provider value={value}>
+    <THEME_CONTEXT.Provider value={value}>
       {children}
-    </ThemeContext.Provider>
+    </THEME_CONTEXT.Provider>
   );
 }
 
@@ -92,7 +92,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 // ---------------------------------------------------------------------------
 
 export function useTheme() {
-  const ctx = useContext(ThemeContext);
+  const ctx = useContext(THEME_CONTEXT);
   if (!ctx) throw new Error('useTheme must be used within ThemeProvider');
   return ctx;
 }
+

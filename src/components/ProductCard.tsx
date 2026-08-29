@@ -55,79 +55,45 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           )}
         </Link>
 
-        {/* Badges */}
-        <div className="absolute top-3 left-3 flex flex-col gap-1 z-10">
-          {!isInStock ? (
-            <span className="bg-red-600 text-white text-[9px] font-bold tracking-widest px-2.5 py-1 uppercase rounded-md shadow-sm">
-              OUT OF STOCK
-            </span>
-          ) : (
-            <>
-              {product.badgeText && (
-                <span
-                  className="text-white text-[9px] font-bold tracking-widest px-2.5 py-1 uppercase rounded-md shadow-sm"
-                  style={{ backgroundColor: 'var(--theme-card-badge-bg, var(--theme-badge-bg, #DC2626))' }}
-                >
-                  {product.badgeText}
-                </span>
-              )}
-              {product.isNew && !product.badgeText && (
-                <span
-                  className="text-white text-[9px] font-bold tracking-widest px-2.5 py-1 uppercase rounded-md shadow-sm"
-                  style={{ backgroundColor: 'var(--theme-card-badge-bg, var(--theme-badge-bg, #DC2626))' }}
-                >
-                  NEW
-                </span>
-              )}
-              {product.isSale && formattedOriginalPrice && !product.badgeText && (
-                <span
-                  className="text-white text-[9px] font-bold tracking-widest px-2.5 py-1 uppercase rounded-md shadow-sm"
-                  style={{ backgroundColor: 'var(--theme-card-badge-bg, var(--theme-badge-bg, #DC2626))' }}
-                >
-                  SALE
-                </span>
-              )}
-            </>
-          )}
-        </div>
+
 
         {/* Wishlist Button */}
         <button
           onClick={() => toggleWishlist(product)}
-          className={`absolute top-3 right-3 z-10 w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+          className={`absolute top-2 right-2 sm:top-3 sm:right-3 z-10 w-7 h-7 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all ${
             isWishlisted
               ? 'bg-red-50 text-red-600 shadow-md'
               : 'bg-white/80 backdrop-blur-md text-gray-700 hover:bg-white hover:text-black shadow-sm'
           }`}
           title="Save to Wishlist"
         >
-          <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-current' : ''}`} />
+          <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isWishlisted ? 'fill-current' : ''}`} />
         </button>
 
         {/* Quick View Button */}
         <Link
           href={`/product/${product.slug}`}
-          className="absolute bottom-3 left-3 right-3 py-2 bg-white/90 backdrop-blur-md text-[#1A1A1A] text-xs font-bold uppercase tracking-wider rounded-xl text-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-md flex items-center justify-center gap-1.5 hover:bg-[#1A1A1A] hover:text-white"
+          className="absolute bottom-2 left-2 right-2 sm:bottom-3 sm:left-3 sm:right-3 py-1.5 sm:py-2 bg-white/90 backdrop-blur-md text-[#1A1A1A] text-[10px] sm:text-xs font-bold uppercase tracking-wider rounded-lg sm:rounded-xl text-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-md flex items-center justify-center gap-1 hover:bg-[#1A1A1A] hover:text-white"
         >
-          <Eye className="w-3.5 h-3.5" />
+          <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
           <span>Quick View</span>
         </Link>
       </div>
 
       {/* Product Content Details */}
-      <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+      <div className="p-2.5 sm:p-4 flex-1 flex flex-col justify-between space-y-2 sm:space-y-3">
         
         {/* Category & Title */}
-        <div className="space-y-1">
+        <div className="space-y-0.5 sm:space-y-1">
           <span
-            className="text-[10px] font-bold uppercase tracking-[0.2em] block"
+            className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] block line-clamp-1"
             style={{ color: 'var(--theme-primary, #C5A880)' }}
           >
             {product.category}
           </span>
           <Link href={`/product/${product.slug}`} className="block">
             <h3
-              className="text-xs sm:text-sm font-bold transition-colors line-clamp-1"
+              className="text-[11px] sm:text-sm font-bold transition-colors line-clamp-1"
               style={{ color: 'var(--theme-card-text, var(--theme-text-primary, #1A1A1A))' }}
             >
               {product.name}
@@ -135,38 +101,23 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           </Link>
         </div>
 
-        {/* Color Palette Swatches */}
-        {product.colors && product.colors.length > 0 && (
-          <div className="flex items-center gap-1.5 py-0.5">
-            {product.colors.map((c) => (
-              <button
-                key={c.name}
-                onClick={() => setSelectedColor(c)}
-                className={`w-4 h-4 rounded-full border transition-transform ${
-                  selectedColor.name === c.name ? 'ring-2 ring-[#1A1A1A] scale-110' : 'border-gray-300 hover:scale-105'
-                }`}
-                style={{ backgroundColor: c.hex }}
-                title={c.name}
-              />
-            ))}
-          </div>
-        )}
+
 
         {/* Rating & Conditional ETB Price */}
         <div
           className="flex items-center justify-between pt-1 border-t"
           style={{ borderColor: 'var(--theme-card-border, var(--theme-border-color, #E7E2DA))' }}
         >
-          <div className="flex items-baseline gap-2">
+          <div className="flex items-baseline gap-1 sm:gap-2">
             <span
-              className="text-sm font-extrabold"
+              className="text-xs sm:text-sm font-extrabold"
               style={{ color: 'var(--theme-card-text, var(--theme-text-primary, #1A1A1A))' }}
             >
               {formattedPrice}
             </span>
             {formattedOriginalPrice && (
               <span
-                className="text-[11px] line-through font-normal"
+                className="text-[9px] sm:text-[11px] line-through font-normal"
                 style={{ color: 'var(--theme-card-muted, var(--theme-text-muted, #666059))' }}
               >
                 {formattedOriginalPrice}
@@ -174,13 +125,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             )}
           </div>
 
-          {/* Real rating only — hidden completely when the product has no customer reviews */}
+          {/* Real rating only */}
           {Number(product.reviewsCount) > 0 && Number(product.rating) > 0 && (
             <div
-              className="flex items-center gap-1 text-[11px] font-semibold"
+              className="flex items-center gap-0.5 text-[10px] sm:text-[11px] font-semibold"
               style={{ color: 'var(--theme-card-muted, var(--theme-text-muted, #666059))' }}
             >
-              <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
+              <Star className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-500 fill-amber-500" />
               <span>{Number(product.rating).toFixed(1)}</span>
             </div>
           )}
@@ -189,7 +140,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         {/* Order Action Button */}
         <Link
           href={`/product/${product.slug || product.id}`}
-          className={`w-full py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 mt-1 text-center ${
+          className={`w-full py-1.5 sm:py-2.5 text-[10px] sm:text-xs font-bold uppercase tracking-wider rounded-lg sm:rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 mt-1 text-center ${
             isInStock
               ? 'hover:opacity-90'
               : 'bg-gray-200 text-gray-500 cursor-not-allowed pointer-events-none'
@@ -203,8 +154,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
               : {}
           }
         >
-          <ShoppingBag className="w-3.5 h-3.5" />
-          <span>{isInStock ? t('selectAndBuy') : t('outOfStock')}</span>
+          <ShoppingBag className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+          <span className="truncate">{isInStock ? t('selectAndBuy') : t('outOfStock')}</span>
         </Link>
 
       </div>

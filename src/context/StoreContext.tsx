@@ -44,6 +44,7 @@ const StoreContext = createContext<StoreContextType | undefined>(undefined);
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [wishlist, setWishlist] = useState<Product[]>([]);
+  const [isMounted, setIsMounted] = useState(false);
   const [telegramUsername, setTelegramUsernameState] = useState<string>(process.env.NEXT_PUBLIC_TELEGRAM_USERNAME || '');
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -84,8 +85,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  // Load site settings & local storage
+  // Load site settings & local storage on initial mount
   useEffect(() => {
+    setIsMounted(true);
     try {
       const cachedSettings = localStorage.getItem('hiwi_site_settings');
       if (cachedSettings) {
@@ -108,7 +110,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const savedLang = localStorage.getItem('hiwi_lang') as Language;
       if (savedLang && (savedLang === 'en' || savedLang === 'am')) setLanguageState(savedLang);
     } catch (e) {
-      console.error(e);
+      console.error('Error reading localStorage on mount:', e);
     }
   }, []);
 
@@ -152,18 +154,25 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (siteSettings.themeBorderColor) root.style.setProperty('--border-color', siteSettings.themeBorderColor);
   }, [siteSettings]);
 
-  // Sync storage
+  // Persist cart to localStorage whenever cart changes after initial mount
   useEffect(() => {
+    if (!isMounted) return;
     try {
       localStorage.setItem('hiwi_cart', JSON.stringify(cart));
-    } catch (e) {}
-  }, [cart]);
+    } catch (e) {
+      console.error('Error saving cart to localStorage:', e);
+    }
+  }, [cart, isMounted]);
 
+  // Persist wishlist to localStorage whenever wishlist changes after initial mount
   useEffect(() => {
+    if (!isMounted) return;
     try {
       localStorage.setItem('hiwi_wishlist', JSON.stringify(wishlist));
-    } catch (e) {}
-  }, [wishlist]);
+    } catch (e) {
+      console.error('Error saving wishlist to localStorage:', e);
+    }
+  }, [wishlist, isMounted]);
 
   const setTelegramUsername = (username: string) => {
     const clean = username.replace('@', '').trim();

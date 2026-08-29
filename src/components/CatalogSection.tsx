@@ -917,7 +917,7 @@ export const CatalogSection: React.FC<CatalogSectionProps> = ({
               </div>
             ) : (
               <div
-                className={`grid gap-4 sm:gap-6 ${
+                className={`grid gap-2.5 sm:gap-6 ${
                   viewMode === 'grid-4'
                     ? 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-3'
                     : 'grid-cols-1'

@@ -39,26 +39,26 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   var saved = localStorage.getItem('hiwi_site_settings');
                   var s = saved ? JSON.parse(saved) : {};
                   var d = {
-                    themePrimaryColor: '#10B981',
-                    themeSecondaryColor: '#064E3B',
-                    themeHeaderBg: '#064E3B',
+                    themePrimaryColor: '#C5A880',
+                    themeSecondaryColor: '#1A1A1A',
+                    themeHeaderBg: '#1A1A1A',
                     themeHeaderTextColor: '#FFFFFF',
-                    themeAppBg: '#F0FDF4',
+                    themeAppBg: '#F9F7F4',
                     themeCardBg: '#FFFFFF',
-                    themeCardTextColor: '#064E3B',
-                    themeCardMutedText: '#047857',
-                    themeCardBorderColor: '#A7F3D0',
-                    themeCardBadgeBg: '#F59E0B',
-                    themeCardButtonBg: '#064E3B',
+                    themeCardTextColor: '#1A1A1A',
+                    themeCardMutedText: '#666059',
+                    themeCardBorderColor: '#E7E2DA',
+                    themeCardBadgeBg: '#DC2626',
+                    themeCardButtonBg: '#1A1A1A',
                     themeCardButtonTextColor: '#FFFFFF',
-                    themeButtonBg: '#064E3B',
+                    themeButtonBg: '#1A1A1A',
                     themeButtonTextColor: '#FFFFFF',
-                    themeBadgeBg: '#F59E0B',
-                    themeAnnouncementBg: '#064E3B',
-                    themeAnnouncementTextColor: '#A7F3D0',
-                    themeTextPrimary: '#064E3B',
-                    themeTextMuted: '#047857',
-                    themeBorderColor: '#A7F3D0'
+                    themeBadgeBg: '#DC2626',
+                    themeAnnouncementBg: '#1A1A1A',
+                    themeAnnouncementTextColor: '#C5A880',
+                    themeTextPrimary: '#1A1A1A',
+                    themeTextMuted: '#666059',
+                    themeBorderColor: '#E7E2DA'
                   };
                   var root = document.documentElement;
                   root.style.setProperty('--theme-primary', s.themePrimaryColor || d.themePrimaryColor);

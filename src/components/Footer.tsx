@@ -16,7 +16,7 @@ export const Footer: React.FC = () => {
 
   return (
     <footer
-      className="pt-16 pb-12 border-t transition-colors duration-300"
+      className="pt-16 pb-24 lg:pb-12 border-t transition-colors duration-300"
       style={{
         backgroundColor: 'var(--theme-header-bg, var(--theme-secondary, #1A1A1A))',
         color: 'var(--theme-header-text, #FFFFFF)',
