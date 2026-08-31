@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { Product, Category, SubCategory, ProductProperty, PropertyDefinition, PropertyOption, PropertyType, OrderInquiry, SiteSettings, Review } from '../types';
 import { INITIAL_PRODUCTS, INITIAL_CATEGORIES } from '../data/mockProducts';
+import { postProductToTelegramGroup } from './telegramService';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://xafspnuqhcpznrihtmvq.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -20,6 +21,8 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   heroImageUrl: '/images/hero.jpg',
   heroCtaText: 'SHOP CATALOG',
   telegramUsername: process.env.NEXT_PUBLIC_TELEGRAM_USERNAME || 'abigel2',
+  telegramBotToken: process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN || '8754528608:AAGbDG_ilyMr_iNUxXfi5tlhhMG_i2nA-uY',
+  telegramChannel: process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL || '@hiwifashion12',
   contactPhone: '+251 91 123 4567',
   contactEmail: 'contact@hiwifashion.com',
   storeLocation: 'Bole Subcity, Addis Ababa, Ethiopia',
@@ -114,6 +117,8 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       heroImageUrl: data.hero_image_url || DEFAULT_SITE_SETTINGS.heroImageUrl,
       heroCtaText: data.hero_cta_text || DEFAULT_SITE_SETTINGS.heroCtaText,
       telegramUsername: data.telegram_username || DEFAULT_SITE_SETTINGS.telegramUsername,
+      telegramBotToken: data.telegram_bot_token || DEFAULT_SITE_SETTINGS.telegramBotToken,
+      telegramChannel: data.telegram_channel || DEFAULT_SITE_SETTINGS.telegramChannel,
       contactPhone: data.contact_phone || DEFAULT_SITE_SETTINGS.contactPhone,
       contactEmail: data.contact_email || DEFAULT_SITE_SETTINGS.contactEmail,
       storeLocation: data.store_location || DEFAULT_SITE_SETTINGS.storeLocation,
@@ -222,6 +227,8 @@ export async function updateSiteSettings(settings: Partial<SiteSettings>): Promi
       hero_image_url: updated.heroImageUrl,
       hero_cta_text: updated.heroCtaText,
       telegram_username: updated.telegramUsername,
+      telegram_bot_token: updated.telegramBotToken,
+      telegram_channel: updated.telegramChannel,
       contact_phone: updated.contactPhone,
       contact_email: updated.contactEmail,
       store_location: updated.storeLocation,
@@ -571,6 +578,14 @@ export async function createProduct(productData: Partial<Product>): Promise<{ su
   }
 
   inMemoryProducts.unshift(newProduct);
+
+  // Automatically broadcast new product post to Telegram Group @hiwifashion12
+  try {
+    postProductToTelegramGroup(newProduct).catch((err) =>
+      console.warn('Auto Telegram broadcast background error:', err)
+    );
+  } catch (e) {}
+
   return { success: true, data: newProduct };
 }
 
@@ -592,7 +607,12 @@ export async function updateProduct(id: string, productData: Partial<Product>): 
     if (productData.badgeText !== undefined) updatePayload.badge_text = productData.badgeText;
     if (productData.image !== undefined) updatePayload.image = productData.image;
     if (productData.secondaryImage !== undefined) updatePayload.secondary_image = productData.secondaryImage;
-    if (productData.images !== undefined) updatePayload.images = productData.images;
+    if (productData.images !== undefined) {
+      updatePayload.images = productData.images;
+      if (!updatePayload.image && productData.images.length > 0) {
+        updatePayload.image = productData.images[0];
+      }
+    }
     if (productData.sizes !== undefined) updatePayload.sizes = productData.sizes;
     if (productData.colors !== undefined) updatePayload.colors = productData.colors;
     if (productData.material !== undefined) updatePayload.material = productData.material;
@@ -638,7 +658,17 @@ export async function updateProduct(id: string, productData: Partial<Product>): 
     console.warn('Supabase updateProduct caught exception:', err);
   }
 
-  inMemoryProducts = inMemoryProducts.map((p) => (p.id === id ? { ...p, ...productData } : p));
+  inMemoryProducts = inMemoryProducts.map((p) => {
+    if (p.id === id) {
+      const updatedP = { ...p, ...productData };
+      if (productData.image) updatedP.image = productData.image;
+      if (productData.images && productData.images.length > 0 && !productData.image) {
+        updatedP.image = productData.images[0];
+      }
+      return updatedP;
+    }
+    return p;
+  });
   const updated = inMemoryProducts.find((p) => p.id === id);
   return { success: true, data: updated };
 }

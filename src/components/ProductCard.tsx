@@ -25,6 +25,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     ? `ETB ${product.originalPrice.toLocaleString('en-US')}`
     : null;
 
+  // Dynamic cover image resolution (ensures updated image is ALWAYS displayed)
+  const coverImage = product.image || (product.images && product.images.length > 0 ? product.images[0] : '/images/hero.jpg');
+  const secondaryImage = product.secondaryImage || (product.images && product.images.length > 1 ? product.images[1] : undefined);
+
   return (
     <div
       className="group relative flex flex-col rounded-2xl overflow-hidden border hover:shadow-xl transition-all duration-300"
@@ -38,7 +42,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
       <div className="relative aspect-[3/4] w-full overflow-hidden bg-[#FAF8F5]">
         <Link href={`/product/${product.slug}`} className="block w-full h-full">
           <img
-            src={product.image}
+            src={coverImage}
             alt={product.name}
             className={`w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105 ${
               !isInStock ? 'grayscale opacity-75' : ''
@@ -46,9 +50,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           />
 
           {/* Secondary Hover Image */}
-          {product.secondaryImage && (
+          {secondaryImage && (
             <img
-              src={product.secondaryImage}
+              src={secondaryImage}
               alt={`${product.name} secondary preview`}
               className="absolute inset-0 w-full h-full object-cover object-top opacity-0 group-hover:opacity-100 transition-opacity duration-500"
             />

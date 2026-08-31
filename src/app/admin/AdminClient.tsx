@@ -28,6 +28,7 @@ import {
   isProductInCategory,
   supabase,
 } from '../../lib/supabase';
+import { postProductToTelegramGroup, testTelegramBroadcast } from '../../lib/telegramService';
 import { uploadImageToSupabase } from '../../lib/supabaseStorage';
 import { useStore } from '../../context/StoreContext';
 import { THEME_PRESETS, ThemePreset } from '../../lib/themePresets';
@@ -36,6 +37,7 @@ import {
   ShoppingBag,
   Layers,
   Send,
+  Bot,
   Sliders,
   SlidersHorizontal,
   Plus,
@@ -575,6 +577,28 @@ export default function AdminClient({
     setLoading(false);
   };
 
+  const handleBroadcastToTelegram = async (prod: Product) => {
+    showToast(`Posting "${prod.name}" to Telegram group @hiwifashion12...`);
+    const res = await postProductToTelegramGroup(prod);
+    if (res.success) {
+      showToast(`Successfully posted "${prod.name}" to @hiwifashion12!`);
+    } else {
+      showToast(`Telegram post error: ${res.error || 'Failed to send'}`);
+    }
+  };
+
+  const handleTestTelegramConnection = async () => {
+    const token = siteForm.telegramBotToken || '8754528608:AAGbDG_ilyMr_iNUxXfi5tlhhMG_i2nA-uY';
+    const channel = siteForm.telegramChannel || '@hiwifashion12';
+
+    showToast(`Testing Telegram connection to ${channel}...`);
+    const res = await testTelegramBroadcast(token, channel);
+    if (res.success) {
+      showToast(`Success! Connection verified and test message posted to ${channel}`);
+    } else {
+      showToast(`Telegram Error: ${res.error || 'Connection failed'}`);
+    }
+  };
 
   const handleDeleteProduct = async (id: string, name: string) => {
     if (confirm(`Delete product "${name}" permanently?`)) {
@@ -1481,7 +1505,15 @@ export default function AdminClient({
                             )}
                           </td>
                           <td className="py-4 px-6 text-right">
-                            <div className="flex items-center justify-end gap-1">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => handleBroadcastToTelegram(p)}
+                                className="px-3 py-1.5 bg-[#0088cc] hover:bg-[#0077b5] text-white rounded-xl transition-all shadow-xs flex items-center gap-1.5 text-xs font-bold shrink-0"
+                                title="Post product photo, details & order link to Telegram Group @hiwifashion12"
+                              >
+                                <Send className="w-3.5 h-3.5" />
+                                <span>Post Telegram</span>
+                              </button>
                               <button
                                 onClick={() => {
                                   setViewProduct(p);
@@ -2595,6 +2627,126 @@ export default function AdminClient({
                     onChange={(e) => setSiteForm({ ...siteForm, footerCopyright: e.target.value })}
                     className="w-full px-3 py-2.5 border rounded-xl"
                   />
+                </div>
+              </div>
+
+              {/* SECTION 7: TELEGRAM AUTOMATION & BOT CONFIGURATION */}
+              <div className="space-y-4 border-t border-[#E7E2DA] pt-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h4 className="font-bold text-sm text-[#1A1A1A] uppercase tracking-wider flex items-center gap-2">
+                      <Send className="w-4 h-4 text-[#0088cc]" /> Telegram Bot & Channel Database Configuration
+                    </h4>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Configure your Telegram Bot Token and Group/Channel Username. Stored directly in Supabase for automated product broadcasting.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <a
+                      href={`https://t.me/${(siteForm.telegramChannel || 'hiwifashion12').replace('https://t.me/', '').replace('@', '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-2 bg-blue-50 text-[#0088cc] hover:bg-blue-100 rounded-xl text-xs font-bold transition-all border border-blue-200 flex items-center gap-1.5"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Open Telegram Channel</span>
+                    </a>
+                    <button
+                      type="button"
+                      onClick={handleTestTelegramConnection}
+                      className="px-4 py-2 bg-[#0088cc] hover:bg-[#0077b5] text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-2"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Test Broadcast Connection</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3-Step Helper Banner for Making Bot an Admin */}
+                <div className="bg-gradient-to-r from-blue-50 via-sky-50 to-indigo-50 border border-blue-200/80 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-bold text-[#0088cc] uppercase tracking-wider">
+                      <Bot className="w-4 h-4" />
+                      <span>How to Make @hiwifashionbot an Admin of Your Group / Channel</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-blue-700 bg-white/80 px-2 py-0.5 rounded-full border border-blue-200">
+                      Required for Auto-Posting
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div className="bg-white/90 p-3 rounded-xl border border-blue-100 space-y-1">
+                      <span className="font-bold text-[#1A1A1A] block">1. Open Channel Info</span>
+                      <p className="text-gray-600 text-[11px]">
+                        Open <strong className="text-[#0088cc]">{siteForm.telegramChannel || '@hiwifashion12'}</strong> in Telegram, tap the header bar to open ⚙️ Settings.
+                      </p>
+                    </div>
+
+                    <div className="bg-white/90 p-3 rounded-xl border border-blue-100 space-y-1">
+                      <span className="font-bold text-[#1A1A1A] block">2. Add Administrator</span>
+                      <p className="text-gray-600 text-[11px]">
+                        Tap <strong>Administrators</strong> &rarr; <strong>Add Administrator</strong> &rarr; Search for <strong className="text-[#0088cc]">@hiwifashionbot</strong>.
+                      </p>
+                    </div>
+
+                    <div className="bg-white/90 p-3 rounded-xl border border-blue-100 space-y-1">
+                      <span className="font-bold text-[#1A1A1A] block">3. Grant Post Permission</span>
+                      <p className="text-gray-600 text-[11px]">
+                        Enable <strong>Post Messages</strong> &amp; <strong>Edit Messages</strong> permissions and tap <strong>Done</strong> ✓.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                      Telegram Bot Token
+                    </label>
+                    <input
+                      type="text"
+                      value={siteForm.telegramBotToken || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, telegramBotToken: e.target.value })}
+                      placeholder="8754528608:AAGbDG_ilyMr_iNUxXfi5tlhhMG_i2nA-uY"
+                      className="w-full px-3 py-2.5 border rounded-xl font-mono text-xs focus:ring-2 focus:ring-[#0088cc]"
+                    />
+                    <span className="text-[10px] text-gray-400 mt-1 block">
+                      Bot token issued by @BotFather
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                      Telegram Channel / Group Username
+                    </label>
+                    <input
+                      type="text"
+                      value={siteForm.telegramChannel || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, telegramChannel: e.target.value })}
+                      placeholder="@hiwifashion12"
+                      className="w-full px-3 py-2.5 border rounded-xl font-mono text-xs focus:ring-2 focus:ring-[#0088cc]"
+                    />
+                    <span className="text-[10px] text-gray-400 mt-1 block">
+                      Group or Channel username (e.g. @hiwifashion12 or https://t.me/hiwifashion12)
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-800 uppercase tracking-wider block mb-1">
+                      Seller Direct Inbox Username
+                    </label>
+                    <input
+                      type="text"
+                      value={siteForm.telegramUsername || ''}
+                      onChange={(e) => setSiteForm({ ...siteForm, telegramUsername: e.target.value })}
+                      placeholder="abigel2"
+                      className="w-full px-3 py-2.5 border rounded-xl font-mono text-xs"
+                    />
+                    <span className="text-[10px] text-gray-400 mt-1 block">
+                      Personal Telegram handle for customer buy inquiries (e.g. abigel2)
+                    </span>
+                  </div>
                 </div>
               </div>
 

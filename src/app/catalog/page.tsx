@@ -2,6 +2,9 @@ import React from 'react';
 import { getProducts, getCategories } from '../../lib/supabase';
 import { CatalogSection } from '../../components/CatalogSection';
 
+export const revalidate = 0;
+export const dynamic = 'force-dynamic';
+
 interface Props {
   searchParams: Promise<{ category?: string; sale?: string }>;
 }

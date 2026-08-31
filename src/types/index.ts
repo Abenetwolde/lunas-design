@@ -129,6 +129,8 @@ export interface SiteSettings {
   heroImageUrl: string;
   heroCtaText: string;
   telegramUsername: string;
+  telegramBotToken?: string;
+  telegramChannel?: string;
   contactPhone: string;
   contactEmail: string;
   storeLocation: string;
