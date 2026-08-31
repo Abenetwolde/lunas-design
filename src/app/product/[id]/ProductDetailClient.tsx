@@ -15,6 +15,8 @@ import {
   MessageSquare,
   CheckCircle,
   User,
+  Phone,
+  PhoneCall,
 } from 'lucide-react';
 import { recordTelegramOrder, getProductReviews, addReview } from '../../../lib/supabase';
 
@@ -24,7 +26,7 @@ interface Props {
 }
 
 export default function ProductDetailClient({ product: initialProduct, relatedProducts }: Props) {
-  const { addToCart, toggleWishlist, isInWishlist, telegramUsername } = useStore();
+  const { addToCart, toggleWishlist, isInWishlist, telegramUsername, siteSettings } = useStore();
   const [product] = useState<Product>(initialProduct);
 
   const [selectedColor, setSelectedColor] = useState<ColorOption>(
@@ -181,7 +183,7 @@ ${customerName ? `Customer Name: ${customerName}\n` : ''}${
   const hasOriginalPrice = Boolean(product.originalPrice && product.originalPrice > product.price);
 
   return (
-    <div className="bg-[#F9F7F4] min-h-screen py-6 sm:py-8">
+    <div className="bg-[#F9F7F4] min-h-screen pt-20 sm:pt-24 pb-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-12">
         
         {/* Breadcrumb Navigation */}
@@ -205,9 +207,9 @@ ${customerName ? `Customer Name: ${customerName}\n` : ''}${
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12 bg-white p-5 sm:p-10 rounded-3xl border border-[#E7E2DA] shadow-sm">
           
           {/* Left Column: Image Gallery */}
-          <div className="space-y-4">
+          <div className="lg:sticky lg:top-24 space-y-4 self-start">
             <div
-              className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden bg-[#FAF8F5] border border-[#E7E2DA] group select-none cursor-grab active:cursor-grabbing"
+              className="relative aspect-[3/4] max-h-[600px] w-full rounded-2xl overflow-hidden bg-[#FAF8F5] border border-[#E7E2DA] group select-none cursor-grab active:cursor-grabbing"
               onTouchStart={onTouchStart}
               onTouchMove={onTouchMove}
               onTouchEnd={onTouchEnd}
@@ -435,7 +437,7 @@ ${customerName ? `Customer Name: ${customerName}\n` : ''}${
               </div>
             </div>
 
-            {/* DIRECT TELEGRAM ORDER BOX - SITE BASE COLOR SCHEME */}
+            {/* DIRECT TELEGRAM ORDER & PHONE HOTLINE BOX */}
             <div className="p-5 sm:p-6 rounded-2xl bg-[#FAF8F5] text-[#1A1A1A] space-y-4 border border-[#E7E2DA]">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
@@ -449,6 +451,34 @@ ${customerName ? `Customer Name: ${customerName}\n` : ''}${
                 </div>
                 <span className="text-xs font-bold text-[#0088cc]">@{telegramUsername}</span>
               </div>
+
+              {/* Direct Store Contact Phone Hotline */}
+              {siteSettings?.contactPhone && (
+                <div className="p-3.5 bg-amber-50/90 rounded-xl border border-amber-200/80 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-amber-200 text-amber-900 flex items-center justify-center shrink-0">
+                      <Phone className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-amber-900 font-bold uppercase tracking-wider block">Direct Seller Phone Inquiry</span>
+                      <a
+                        href={`tel:${siteSettings.contactPhone.replace(/\s+/g, '')}`}
+                        className="font-mono font-bold text-sm text-[#1A1A1A] hover:text-[#C5A880] transition-colors"
+                      >
+                        {siteSettings.contactPhone}
+                      </a>
+                    </div>
+                  </div>
+
+                  <a
+                    href={`tel:${siteSettings.contactPhone.replace(/\s+/g, '')}`}
+                    className="px-3 py-1.5 bg-[#1A1A1A] hover:bg-[#C5A880] text-white hover:text-black rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 shrink-0"
+                  >
+                    <PhoneCall className="w-3.5 h-3.5" />
+                    <span>Call Store</span>
+                  </a>
+                </div>
+              )}
 
               {/* Message snippet preview */}
               <div className="p-3.5 bg-white rounded-xl font-mono text-[11px] text-gray-800 max-h-32 overflow-y-auto whitespace-pre-wrap border border-[#E7E2DA]">
@@ -469,6 +499,17 @@ ${customerName ? `Customer Name: ${customerName}\n` : ''}${
                   <Send className="w-4 h-4" />
                   <span>{isInStock ? 'Send Order to Telegram' : 'Currently Out of Stock'}</span>
                 </button>
+
+                {siteSettings?.contactPhone && (
+                  <a
+                    href={`tel:${siteSettings.contactPhone.replace(/\s+/g, '')}`}
+                    className="py-3.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 shadow-sm shrink-0"
+                  >
+                    <Phone className="w-4 h-4" />
+                    <span className="hidden sm:inline">Call Store</span>
+                    <span className="sm:hidden">Call</span>
+                  </a>
+                )}
 
                 <button
                   onClick={() => isInStock && addToCart(product, selectedColor, selectedSize, quantity)}

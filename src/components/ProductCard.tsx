@@ -31,7 +31,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
   return (
     <div
-      className="group relative flex flex-col rounded-2xl overflow-hidden border hover:shadow-xl transition-all duration-300"
+      className="group relative flex flex-col rounded-2xl overflow-hidden border hover:shadow-2xl hover:-translate-y-1 transition-all duration-500"
       style={{
         backgroundColor: 'var(--theme-card-bg, #FFFFFF)',
         borderColor: 'var(--theme-card-border, var(--theme-border-color, #E7E2DA))',
@@ -44,7 +44,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           <img
             src={coverImage}
             alt={product.name}
-            className={`w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105 ${
+            className={`w-full h-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-108 ${
               !isInStock ? 'grayscale opacity-75' : ''
             }`}
           />
@@ -54,30 +54,28 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             <img
               src={secondaryImage}
               alt={`${product.name} secondary preview`}
-              className="absolute inset-0 w-full h-full object-cover object-top opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+              className="absolute inset-0 w-full h-full object-cover object-top opacity-0 group-hover:opacity-100 transition-opacity duration-500 ease-out"
             />
           )}
         </Link>
 
-
-
         {/* Wishlist Button */}
         <button
           onClick={() => toggleWishlist(product)}
-          className={`absolute top-2 right-2 sm:top-3 sm:right-3 z-10 w-7 h-7 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all ${
+          className={`absolute top-2 right-2 sm:top-3 sm:right-3 z-10 w-7 h-7 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all duration-300 active:scale-125 ${
             isWishlisted
-              ? 'bg-red-50 text-red-600 shadow-md'
-              : 'bg-white/80 backdrop-blur-md text-gray-700 hover:bg-white hover:text-black shadow-sm'
+              ? 'bg-red-50 text-red-600 shadow-md scale-105'
+              : 'bg-white/80 backdrop-blur-md text-gray-700 hover:bg-white hover:text-black hover:scale-110 shadow-sm'
           }`}
           title="Save to Wishlist"
         >
-          <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isWishlisted ? 'fill-current' : ''}`} />
+          <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isWishlisted ? 'fill-current animate-pulse' : ''}`} />
         </button>
 
         {/* Quick View Button */}
         <Link
           href={`/product/${product.slug}`}
-          className="absolute bottom-2 left-2 right-2 sm:bottom-3 sm:left-3 sm:right-3 py-1.5 sm:py-2 bg-white/90 backdrop-blur-md text-[#1A1A1A] text-[10px] sm:text-xs font-bold uppercase tracking-wider rounded-lg sm:rounded-xl text-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-md flex items-center justify-center gap-1 hover:bg-[#1A1A1A] hover:text-white"
+          className="absolute bottom-2 left-2 right-2 sm:bottom-3 sm:left-3 sm:right-3 py-1.5 sm:py-2 bg-white/90 backdrop-blur-md text-[#1A1A1A] text-[10px] sm:text-xs font-bold uppercase tracking-wider rounded-lg sm:rounded-xl text-center translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 shadow-md flex items-center justify-center gap-1 hover:bg-[#1A1A1A] hover:text-white"
         >
           <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
           <span>Quick View</span>

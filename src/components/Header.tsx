@@ -113,11 +113,13 @@ export const Header: React.FC = () => {
   return (
     <>
       <header
-        className={`fixed top-0 left-0 right-0 z-40 transition-all duration-500 ease-in-out bg-transparent lg:bg-[var(--theme-header-bg,#FFFFFF)] ${showHeader ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
-          } ${isScrolled
-            ? 'lg:shadow-2xl lg:backdrop-blur-xl border-none lg:border-b'
-            : 'border-none lg:border-b'
-          }`}
+        className={`fixed top-0 left-0 right-0 z-40 transition-all duration-500 ease-in-out bg-[var(--theme-header-bg,#FFFFFF)] ${
+          showHeader ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
+        } ${
+          isScrolled
+            ? 'shadow-lg border-b'
+            : 'border-b'
+        }`}
         style={{
           borderColor: 'var(--theme-border-color, #E7E2DA)',
           color: 'var(--theme-header-text, #1A1A1A)',

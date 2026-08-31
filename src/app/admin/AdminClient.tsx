@@ -1273,8 +1273,35 @@ export default function AdminClient({
       )}
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full space-y-8">
+      <main className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full space-y-6 sm:space-y-8">
         
+        {/* MOBILE QUICK HORIZONTAL TABS BAR */}
+        <div className="lg:hidden flex items-center gap-2 overflow-x-auto pb-2 pt-1 no-scrollbar shrink-0 border-b border-[#E7E2DA]">
+          {navMenuItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleTabClick(item.id as any)}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 transition-all shrink-0 ${
+                  isActive
+                    ? 'bg-[#1A1A1A] text-white shadow-xs'
+                    : 'bg-white text-gray-700 border border-[#E7E2DA] hover:bg-gray-50'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{item.label}</span>
+                {item.badge !== undefined && Number(item.badge) > 0 && (
+                  <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${isActive ? 'bg-[#C5A880] text-black' : 'bg-amber-100 text-amber-900'}`}>
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
         {/* OVERVIEW STATS TAB */}
         {activeTab === 'overview' && (
           <div className="space-y-8 animate-in fade-in duration-300">
@@ -1432,8 +1459,8 @@ export default function AdminClient({
               </select>
             </div>
 
-            {/* Products Table */}
-            <div className="bg-white rounded-3xl border border-[#E7E2DA] overflow-hidden shadow-xs">
+            {/* Products Table Desktop */}
+            <div className="hidden md:block bg-white rounded-3xl border border-[#E7E2DA] overflow-hidden shadow-xs">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-[#FAF8F5] text-gray-700 uppercase tracking-wider font-bold border-b border-[#E7E2DA]">
@@ -1509,7 +1536,7 @@ export default function AdminClient({
                               <button
                                 onClick={() => handleBroadcastToTelegram(p)}
                                 className="px-3 py-1.5 bg-[#0088cc] hover:bg-[#0077b5] text-white rounded-xl transition-all shadow-xs flex items-center gap-1.5 text-xs font-bold shrink-0"
-                                title="Post product photo, details & order link to Telegram Group @hiwifashion12"
+                                title="Post product photo, details & order link to Telegram Group"
                               >
                                 <Send className="w-3.5 h-3.5" />
                                 <span>Post Telegram</span>
@@ -1534,7 +1561,7 @@ export default function AdminClient({
                               </button>
                               <button
                                 onClick={() => handleDeleteProduct(p.id, p.name)}
-                                className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
                                 title="Delete Product"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -1547,6 +1574,82 @@ export default function AdminClient({
                   </tbody>
                 </table>
               </div>
+            </div>
+
+            {/* Products Mobile Card View */}
+            <div className="block md:hidden space-y-3">
+              {filteredProducts.length === 0 ? (
+                <div className="p-6 text-center text-gray-500 bg-white rounded-2xl border border-[#E7E2DA]">
+                  No products found matching filters.
+                </div>
+              ) : (
+                filteredProducts.map((p) => (
+                  <div key={p.id} className="bg-white rounded-2xl p-4 border border-[#E7E2DA] shadow-xs space-y-3">
+                    <div className="flex items-start gap-3">
+                      <img
+                        src={p.image}
+                        alt={p.name}
+                        className="w-16 h-20 object-cover rounded-xl border border-[#E7E2DA] shrink-0"
+                      />
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <span className="font-bold text-[#1A1A1A] text-sm block truncate">{p.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{p.category}</span>
+                          {p.badgeText && (
+                            <span className="bg-[#1A1A1A] text-[#C5A880] text-[9px] font-bold px-1.5 py-0.5 rounded uppercase">
+                              {p.badgeText}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 pt-0.5">
+                          <span className="font-bold text-[#1A1A1A] text-sm">ETB {p.price.toLocaleString()}</span>
+                          {p.originalPrice && (
+                            <span className="text-xs text-gray-400 line-through">ETB {p.originalPrice.toLocaleString()}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-[#E7E2DA] flex items-center justify-between gap-2">
+                      <button
+                        onClick={() => handleBroadcastToTelegram(p)}
+                        className="flex-1 py-2 px-3 bg-[#0088cc] hover:bg-[#0077b5] text-white rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 text-xs font-bold"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Post Telegram</span>
+                      </button>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => {
+                            setViewProduct(p);
+                            setViewSelectedImage(p.image);
+                            setActiveViewTab('details');
+                          }}
+                          className="p-2.5 text-gray-600 bg-gray-100 rounded-xl"
+                          title="Inspect Details"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleOpenEditProduct(p)}
+                          className="p-2.5 text-amber-800 bg-amber-50 rounded-xl"
+                          title="Edit Product"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteProduct(p.id, p.name)}
+                          className="p-2.5 text-red-600 bg-red-50 rounded-xl"
+                          title="Delete Product"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}
@@ -1679,8 +1782,8 @@ export default function AdminClient({
               )}
             </div>
 
-            {/* Table */}
-            <div className="adm-card overflow-hidden">
+            {/* Desktop Table */}
+            <div className="hidden md:block adm-card overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[760px] text-xs">
                   <thead>
@@ -1742,6 +1845,58 @@ export default function AdminClient({
                   </tbody>
                 </table>
               </div>
+            </div>
+
+            {/* Mobile Touch Cards */}
+            <div className="block md:hidden space-y-3">
+              {orderedSubRows.map(({ sub, isChild, parentName }) => {
+                const parentCat = categories.find((c) => c.slug.toLowerCase() === sub.categorySlug.toLowerCase() || c.name.toLowerCase() === sub.categorySlug.toLowerCase());
+                const count = liveSubCount(sub);
+                return (
+                  <div key={sub.id} className="bg-white rounded-2xl p-4 border border-[#E7E2DA] shadow-xs space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full border border-black/10 shrink-0" style={{ backgroundColor: sub.badgeColor || '#C5A880' }} />
+                        <div>
+                          <span className="font-bold text-[#1A1A1A] text-sm block">{sub.name}</span>
+                          <span className="font-mono text-[10px] text-gray-400">/{sub.slug}</span>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 text-[10px] font-bold">
+                        {count} Products
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs pt-1">
+                      <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 text-[10px] font-bold uppercase">
+                        {parentCat?.name || sub.categorySlug}
+                      </span>
+                      {isChild ? (
+                        <span className="text-[10px] text-gray-500">Child of {parentName || sub.parentSlug}</span>
+                      ) : (
+                        <span className="text-[10px] text-emerald-600 font-bold">Top Level</span>
+                      )}
+                    </div>
+
+                    <div className="pt-2 border-t border-[#E7E2DA] flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => handleOpenEditSubcategory(sub)}
+                        className="px-3 py-1.5 bg-amber-50 text-amber-800 rounded-xl text-xs font-bold flex items-center gap-1"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                        <span>Edit</span>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteSubcategory(sub.id, sub.name)}
+                        className="px-3 py-1.5 bg-red-50 text-red-600 rounded-xl text-xs font-bold flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             {/* UNIFIED ATTRIBUTES NOTICE */}
@@ -1955,8 +2110,8 @@ export default function AdminClient({
               </div>
             </div>
 
-            {/* Orders Table */}
-            <div className="bg-white rounded-3xl border border-[#E7E2DA] overflow-hidden shadow-xs">
+            {/* Orders Desktop Table */}
+            <div className="hidden md:block bg-white rounded-3xl border border-[#E7E2DA] overflow-hidden shadow-xs">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-[#FAF8F5] text-gray-700 uppercase tracking-wider font-bold border-b border-[#E7E2DA]">
@@ -2029,6 +2184,77 @@ export default function AdminClient({
                   </tbody>
                 </table>
               </div>
+            </div>
+
+            {/* Orders Mobile Touch Cards */}
+            <div className="block md:hidden space-y-3">
+              {filteredOrders.length === 0 ? (
+                <div className="p-6 text-center text-gray-500 bg-white rounded-2xl border border-[#E7E2DA]">
+                  No order inquiries found.
+                </div>
+              ) : (
+                filteredOrders.map((ord) => (
+                  <div key={ord.id || ord.orderNumber} className="bg-white rounded-2xl p-4 border border-[#E7E2DA] shadow-xs space-y-3">
+                    <div className="flex items-center justify-between border-b border-[#E7E2DA] pb-2">
+                      <div>
+                        <span className="text-[10px] text-gray-400 font-mono block">Order Reference</span>
+                        <span className="font-mono font-bold text-[#1A1A1A] text-sm">{ord.orderNumber}</span>
+                      </div>
+                      <span className="font-bold text-[#1A1A1A] text-sm">ETB {ord.totalAmount?.toLocaleString()}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs">
+                      <div>
+                        <span className="text-[10px] text-gray-400 block uppercase font-bold">Customer</span>
+                        <a
+                          href={`https://t.me/${ord.customerTelegram?.replace('@', '')}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-bold text-[#0088cc] flex items-center gap-1"
+                        >
+                          <Send className="w-3 h-3" />
+                          <span>@{ord.customerTelegram?.replace('@', '')}</span>
+                        </a>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-[10px] text-gray-400 block uppercase font-bold">Items</span>
+                        <span className="font-bold text-gray-700">{ord.items?.length || 0} Products</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1 bg-[#FAF8F5] p-2.5 rounded-xl border border-[#E7E2DA] text-[11px]">
+                      {ord.items?.map((item, idx) => (
+                        <div key={idx} className="flex justify-between text-gray-700 font-medium">
+                          <span>{item.product.name} ({item.selectedSize})</span>
+                          <span className="font-bold">x{item.quantity}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="pt-2 flex items-center justify-between gap-2">
+                      <select
+                        value={ord.status || 'Telegram Pending'}
+                        onChange={(e) => handleStatusChange(ord.id || '', e.target.value)}
+                        className="flex-1 px-3 py-2 bg-[#FAF8F5] border border-[#E7E2DA] rounded-xl text-xs font-bold text-gray-800"
+                      >
+                        <option value="Telegram Pending">Telegram Pending</option>
+                        <option value="Confirmed">Confirmed</option>
+                        <option value="Shipped">Shipped</option>
+                        <option value="Delivered">Delivered</option>
+                        <option value="Cancelled">Cancelled</option>
+                      </select>
+
+                      <button
+                        onClick={() => setSelectedOrder(ord)}
+                        className="px-3 py-2 bg-[#1A1A1A] text-white rounded-xl font-bold text-xs hover:bg-[#C5A880] shrink-0"
+                      >
+                        Invoice
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}
@@ -3521,8 +3747,8 @@ export default function AdminClient({
 
         {/* COMPREHENSIVE ADD & EDIT PRODUCT FORM FULL PAGE VIEW */}
         {showProductModal && (
-          <div className="fixed inset-0 z-50 bg-[#F0FDF4] overflow-y-auto p-3 sm:p-6 md:p-10 transition-all animate-in fade-in duration-200" style={{ backgroundColor: 'var(--theme-app-bg, #F0FDF4)' }}>
-            <div className="max-w-5xl mx-auto bg-white rounded-3xl border shadow-xl p-5 sm:p-8 lg:p-10 space-y-8" style={{ borderColor: 'var(--theme-border-color, #A7F3D0)' }}>
+          <div className="fixed inset-0 z-50 overflow-y-auto p-3 sm:p-6 md:p-10 transition-all animate-in fade-in duration-200" style={{ backgroundColor: 'var(--theme-app-bg, #FAF8F5)' }}>
+            <div className="max-w-5xl mx-auto bg-white rounded-3xl border border-[#E7E2DA] shadow-xl p-5 sm:p-8 lg:p-10 space-y-8">
               
               {/* Page Navigation & Actions Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-gray-100">
@@ -4801,8 +5027,12 @@ export default function AdminClient({
                         ETB {viewProduct.originalPrice.toLocaleString()}
                       </span>
                     )}
-                    <span className="text-amber-500 font-bold flex items-center gap-1 ml-auto">
-                      <Star className="w-4 h-4 fill-amber-400" /> 4.9 (24 reviews)
+                    <span
+                      className={`text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ml-auto ${
+                        viewProduct.inStock !== false ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                      }`}
+                    >
+                      {viewProduct.inStock !== false ? `In Stock (${viewProduct.stockQuantity ?? 'Available'})` : 'Out of Stock'}
                     </span>
                   </div>
 

@@ -3,17 +3,15 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
-import { Lock, Mail, ShieldCheck, ArrowRight, AlertCircle, UserPlus, CheckCircle, Key } from 'lucide-react';
+import { Lock, Mail, ArrowRight, AlertCircle, CheckCircle } from 'lucide-react';
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('etdev6796@gmail.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [showRegisterHelp, setShowRegisterHelp] = useState(false);
 
   useEffect(() => {
     // Check if user is already authenticated in Supabase session or localStorage
@@ -32,88 +30,33 @@ export default function AdminLoginPage() {
     setLoading(true);
     setErrorMsg(null);
     setSuccessMsg(null);
-    setShowRegisterHelp(false);
 
     // Emergency / Master Password bypass check (1234@HiwiGirl)
     if (password === '1234@HiwiGirl') {
       localStorage.setItem('hiwi_admin_session', 'true');
-      localStorage.setItem('hiwi_admin_email', email || 'etdev6796@gmail.com');
+      localStorage.setItem('hiwi_admin_email', email || 'admin@hiwifashion.com');
       router.push('/admin');
       return;
     }
 
-    if (mode === 'signin') {
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-        if (error) {
-          if (error.message.toLowerCase().includes('invalid login credentials')) {
-            setErrorMsg('Invalid credentials. If this email is not registered yet with this password in Supabase, click "Create / Register Account" below to create it.');
-            setShowRegisterHelp(true);
-          } else {
-            setErrorMsg(error.message);
-          }
-        } else if (data.session) {
-          localStorage.setItem('hiwi_admin_session', 'true');
-          localStorage.setItem('hiwi_admin_email', data.session.user.email || email);
-          router.push('/admin');
-        }
-      } catch (err: any) {
-        setErrorMsg(err.message || 'Authentication failed');
+      if (error) {
+        setErrorMsg('Invalid login credentials. Please check email and password.');
+      } else if (data.session) {
+        localStorage.setItem('hiwi_admin_session', 'true');
+        localStorage.setItem('hiwi_admin_email', data.session.user.email || email);
+        router.push('/admin');
       }
-    } else {
-      // SIGN UP / CREATE ADMIN ACCOUNT MODE
-      try {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-        });
-
-        if (error) {
-          setErrorMsg(error.message);
-        } else {
-          // Attempt immediate sign-in right after registration
-          const signInRes = await supabase.auth.signInWithPassword({ email, password });
-          if (signInRes.data?.session) {
-            localStorage.setItem('hiwi_admin_session', 'true');
-            localStorage.setItem('hiwi_admin_email', email);
-            router.push('/admin');
-          } else {
-            setSuccessMsg('Account created successfully! You can now sign in.');
-            setMode('signin');
-          }
-        }
-      } catch (err: any) {
-        setErrorMsg(err.message || 'Failed to create account');
-      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Authentication failed');
     }
 
     setLoading(false);
-  };
-
-  const handleQuickRegister = async () => {
-    setLoading(true);
-    setErrorMsg(null);
-    try {
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (!error) {
-        const res = await supabase.auth.signInWithPassword({ email, password });
-        if (res.data?.session) {
-          localStorage.setItem('hiwi_admin_session', 'true');
-          localStorage.setItem('hiwi_admin_email', email);
-          router.push('/admin');
-          return;
-        }
-      }
-    } catch (err) {}
-    
-    // Direct Admin Fallback access
-    localStorage.setItem('hiwi_admin_session', 'true');
-    localStorage.setItem('hiwi_admin_email', email);
-    router.push('/admin');
   };
 
   return (
@@ -129,55 +72,16 @@ export default function AdminLoginPage() {
             HIWI FASHION ATELIER
           </span>
           <h1 className="font-serif text-2xl font-bold text-[#1A1A1A]">
-            Admin Access Portal
+            Admin Sign In
           </h1>
-          <p className="text-xs text-gray-500">Manage products, orders, and site content</p>
-        </div>
-
-        {/* Tab Switcher: Sign In vs Create Account */}
-        <div className="flex p-1 bg-[#FAF8F5] rounded-2xl border border-[#E7E2DA] text-xs font-bold">
-          <button
-            type="button"
-            onClick={() => { setMode('signin'); setErrorMsg(null); setShowRegisterHelp(false); }}
-            className={`flex-1 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 ${
-              mode === 'signin'
-                ? 'bg-[#1A1A1A] text-white shadow-md'
-                : 'text-gray-600 hover:text-black'
-            }`}
-          >
-            <Lock className="w-3.5 h-3.5" />
-            <span>Sign In</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => { setMode('signup'); setErrorMsg(null); setShowRegisterHelp(false); }}
-            className={`flex-1 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 ${
-              mode === 'signup'
-                ? 'bg-[#1A1A1A] text-white shadow-md'
-                : 'text-gray-600 hover:text-black'
-            }`}
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-            <span>Create Admin Account</span>
-          </button>
+          <p className="text-xs text-gray-500">Sign in to manage catalog, orders & settings</p>
         </div>
 
         {/* Alerts & Feedback */}
         {errorMsg && (
-          <div className="p-3.5 bg-red-50 text-red-700 text-xs font-medium rounded-xl border border-red-200 space-y-2">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
-              <span>{errorMsg}</span>
-            </div>
-            {showRegisterHelp && (
-              <button
-                type="button"
-                onClick={handleQuickRegister}
-                className="w-full py-2 bg-red-600 text-white rounded-lg text-[11px] font-bold uppercase tracking-wider hover:bg-red-700 transition-colors shadow-xs"
-              >
-                Register & Enter Admin Dashboard Now
-              </button>
-            )}
+          <div className="p-3.5 bg-red-50 text-red-700 text-xs font-medium rounded-xl border border-red-200 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+            <span>{errorMsg}</span>
           </div>
         )}
 
@@ -201,7 +105,7 @@ export default function AdminLoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="etdev6796@gmail.com"
+                placeholder="Enter admin email address"
                 className="w-full pl-9 pr-3 py-2.5 border border-[#E7E2DA] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#C5A880] font-medium text-gray-900"
               />
             </div>
@@ -218,7 +122,7 @@ export default function AdminLoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password or 1234@HiwiGirl"
+                placeholder="Enter password"
                 className="w-full pl-9 pr-3 py-2.5 border border-[#E7E2DA] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#C5A880] font-medium text-gray-900"
               />
             </div>
@@ -229,33 +133,13 @@ export default function AdminLoginPage() {
             disabled={loading}
             className="w-full py-3.5 bg-[#1A1A1A] text-white text-xs font-bold uppercase tracking-widest rounded-xl hover:bg-[#C5A880] transition-colors flex items-center justify-center gap-2 shadow-lg"
           >
-            <span>
-              {loading
-                ? 'Processing...'
-                : mode === 'signin'
-                ? 'Sign In to Admin Console'
-                : 'Create Account & Sign In'}
-            </span>
+            <span>{loading ? 'Authenticating...' : 'Sign In'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
-
-        {/* Quick Admin Passcode Access Option */}
-        <div className="pt-4 border-t border-[#E7E2DA] text-center space-y-2">
-          <p className="text-[11px] text-gray-500">
-            Database Master Password: <strong className="font-mono text-gray-800">1234@HiwiGirl</strong>
-          </p>
-          <button
-            type="button"
-            onClick={handleQuickRegister}
-            className="text-xs text-[#0088cc] font-bold hover:underline inline-flex items-center gap-1"
-          >
-            <Key className="w-3.5 h-3.5" />
-            <span>Direct One-Click Admin Access</span>
-          </button>
-        </div>
 
       </div>
     </div>
   );
 }
+

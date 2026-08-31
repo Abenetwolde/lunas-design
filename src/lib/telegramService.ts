@@ -83,26 +83,19 @@ export async function postProductToTelegramGroup(
   const slug = product.slug || product.name.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
   const productUrl = `${siteUrl}/product/${slug}`;
 
-  const formattedPrice = `ETB ${product.price.toLocaleString('en-US')}`;
-  const origPriceText =
-    product.originalPrice && product.originalPrice > product.price
-      ? ` <s>ETB ${product.originalPrice.toLocaleString('en-US')}</s>`
-      : '';
-
   const caption =
-    `✨ <b>NEW ARRIVAL: ${product.name}</b> ✨\n\n` +
-    `💵 <b>Price:</b> <b>${formattedPrice}</b>${origPriceText}\n` +
-    `🏷️ <b>Category:</b> ${product.category.toUpperCase()}\n` +
-    (product.material ? `🧵 <b>Fabric:</b> ${product.material}\n` : '') +
-    `\n📝 ${product.description || 'Authentic handcrafted Habesha garment.'}\n\n` +
-    `⚡ <i>Fast Delivery Available in Addis Ababa!</i>\n` +
-    `👇 Click below to view and order:`;
+    `<b>${product.name.toUpperCase()}</b>\n\n` +
+    `Category: ${product.category.toUpperCase()}\n` +
+    (product.material ? `Fabric: ${product.material}\n` : '') +
+    `\n${product.description || 'Authentic handcrafted Habesha garment.'}\n\n` +
+    `Fast delivery available in Addis Ababa.\n` +
+    `Click below to view details and order:`;
 
   const replyMarkup = {
     inline_keyboard: [
       [
-        { text: '🛍️ View & Order Product', url: productUrl },
-        { text: '💬 Order via Telegram', url: 'https://t.me/abigel2' },
+        { text: 'View & Order Product', url: productUrl },
+        { text: 'Order via Telegram', url: 'https://t.me/abigel2' },
       ],
     ],
   };
