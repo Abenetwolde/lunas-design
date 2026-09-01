@@ -50,20 +50,21 @@ export async function getTelegramBotInfo(botToken: string): Promise<{
 
 export async function postProductToTelegramGroup(
   product: BroadcastProductOptions,
-  overrideSettings?: { botToken?: string; groupUsername?: string }
+  overrideSettings?: { botToken?: string; groupUsername?: string; contactPhone?: string }
 ): Promise<{ success: boolean; error?: string }> {
   let botToken = overrideSettings?.botToken;
   let groupUsername = overrideSettings?.groupUsername;
+  let contactPhone = overrideSettings?.contactPhone;
 
-  if (!botToken || !groupUsername) {
-    try {
-      const settings = await getSiteSettings();
-      botToken = botToken || settings.telegramBotToken || process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN || '8754528608:AAGbDG_ilyMr_iNUxXfi5tlhhMG_i2nA-uY';
-      groupUsername = groupUsername || settings.telegramChannel || process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL || '@hiwifashion12';
-    } catch (e) {
-      botToken = botToken || process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN || '8754528608:AAGbDG_ilyMr_iNUxXfi5tlhhMG_i2nA-uY';
-      groupUsername = groupUsername || process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL || '@hiwifashion12';
-    }
+  try {
+    const settings = await getSiteSettings();
+    botToken = botToken || settings.telegramBotToken || process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN || '8754528608:AAGbDG_ilyMr_iNUxXfi5tlhhMG_i2nA-uY';
+    groupUsername = groupUsername || settings.telegramChannel || process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL || '@hiwifashion12';
+    contactPhone = contactPhone || settings.contactPhone || '+251 911 234 567';
+  } catch (e) {
+    botToken = botToken || process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN || '8754528608:AAGbDG_ilyMr_iNUxXfi5tlhhMG_i2nA-uY';
+    groupUsername = groupUsername || process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL || '@hiwifashion12';
+    contactPhone = contactPhone || '+251 911 234 567';
   }
 
   // Sanitize group username (convert https://t.me/hiwifashion12 or hiwifashion12 to @hiwifashion12)
@@ -83,11 +84,15 @@ export async function postProductToTelegramGroup(
   const slug = product.slug || product.name.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
   const productUrl = `${siteUrl}/product/${slug}`;
 
+  const phoneDisplay = contactPhone || '+251 911 234 567';
+  const phoneClean = phoneDisplay.replace(/[^\d+]/g, '');
+
   const caption =
     `<b>${product.name.toUpperCase()}</b>\n\n` +
     `Category: ${product.category.toUpperCase()}\n` +
     (product.material ? `Fabric: ${product.material}\n` : '') +
     `\n${product.description || 'Authentic handcrafted Habesha garment.'}\n\n` +
+    `📞 <b>Call / Phone:</b> ${phoneDisplay}\n` +
     `Fast delivery available in Addis Ababa.\n` +
     `Click below to view details and order:`;
 
@@ -96,6 +101,9 @@ export async function postProductToTelegramGroup(
       [
         { text: 'View & Order Product', url: productUrl },
         { text: 'Order via Telegram', url: 'https://t.me/abigel2' },
+      ],
+      [
+        { text: `📞 Call Store (${phoneDisplay})`, url: `tel:${phoneClean}` },
       ],
     ],
   };

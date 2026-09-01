@@ -55,6 +55,7 @@ export const Header: React.FC = () => {
 
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
+      const isMobile = window.innerWidth < 1024;
 
       if (currentScrollY > 50) {
         setIsScrolled(true);
@@ -66,12 +67,24 @@ export const Header: React.FC = () => {
         return;
       }
 
+      // On mobile devices, top header ONLY appears while over the hero section
+      if (isMobile) {
+        if (currentScrollY > 320) {
+          setShowHeader(false);
+        } else {
+          setShowHeader(true);
+        }
+        setShowBottomNav(true);
+        lastScrollY = currentScrollY;
+        return;
+      }
+
       if (currentScrollY > lastScrollY && currentScrollY > 80) {
-        // Scrolling DOWN -> Hide top header & bottom nav bar
+        // Desktop Scrolling DOWN -> Hide top header
         setShowHeader(false);
         setShowBottomNav(false);
       } else if (currentScrollY < lastScrollY) {
-        // Scrolling UP -> Reveal top header & bottom nav bar
+        // Desktop Scrolling UP -> Reveal top header
         setShowHeader(true);
         setShowBottomNav(true);
       }
