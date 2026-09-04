@@ -120,6 +120,16 @@ export function persistInMemoryProducts() {
   }
 }
 
+export function toValidUuid(id: string): string {
+  if (!id) return '00000000-0000-4000-8000-000000000001';
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidRegex.test(id)) return id;
+
+  const numericPart = id.replace(/[^0-9]/g, '') || '1';
+  const paddedHex = numericPart.padStart(12, '0').slice(-12);
+  return `00000000-0000-4000-8000-${paddedHex}`;
+}
+
 let inMemoryCategories: Category[] = [...INITIAL_CATEGORIES];
 let inMemoryOrders: OrderInquiry[] = [];
 let inMemoryReviews: Record<string, Review[]> = {};
@@ -513,7 +523,7 @@ export async function getProductBySlug(slugOrId: string): Promise<Product | unde
  */
 export async function createProduct(productData: Partial<Product>): Promise<{ success: boolean; data?: Product; error?: string }> {
   const slug = (productData.name || 'product').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
-  const id = `p-${Date.now()}`;
+  const id = toValidUuid(productData.id || `p-${Date.now()}`);
   
   const newProduct: Product = {
     id,
@@ -631,15 +641,16 @@ export async function updateProduct(id: string, productData: Partial<Product>): 
     await saveProductAttributeValues(id, productData.attributes);
   }
   try {
-    const currentProd = inMemoryProducts.find((p) => p.id === id);
+    const dbUuid = toValidUuid(id);
+    const currentProd = inMemoryProducts.find((p) => p.id === id || p.id === dbUuid);
     const merged: Partial<Product> = {
       ...currentProd,
       ...productData,
-      id,
+      id: dbUuid,
     };
 
     const updatePayload: any = {
-      id: merged.id,
+      id: dbUuid,
       name: merged.name || 'Habesha Garment',
       slug: merged.slug || (merged.name || 'product').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
       category: merged.category || 'dresses',
@@ -720,11 +731,14 @@ export async function updateProduct(id: string, productData: Partial<Product>): 
  */
 export async function deleteProduct(id: string): Promise<{ success: boolean }> {
   deletedProductIds.add(id);
+  const dbUuid = toValidUuid(id);
+  deletedProductIds.add(dbUuid);
   try {
+    await supabase.from('products').delete().eq('id', dbUuid);
     await supabase.from('products').delete().eq('id', id);
   } catch (err) {}
   
-  inMemoryProducts = inMemoryProducts.filter((p) => p.id !== id);
+  inMemoryProducts = inMemoryProducts.filter((p) => p.id !== id && p.id !== dbUuid);
   persistInMemoryProducts();
   return { success: true };
 }
