@@ -92,6 +92,34 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
 
 let inMemorySiteSettings: SiteSettings = { ...DEFAULT_SITE_SETTINGS };
 let inMemoryProducts: Product[] = [...INITIAL_PRODUCTS];
+
+let deletedProductIds = new Set<string>();
+
+if (typeof window !== 'undefined') {
+  try {
+    const savedDeleted = localStorage.getItem('hiwi_deleted_products');
+    if (savedDeleted) {
+      deletedProductIds = new Set(JSON.parse(savedDeleted));
+    }
+    const savedProducts = localStorage.getItem('hiwi_in_memory_products');
+    if (savedProducts) {
+      const parsed = JSON.parse(savedProducts);
+      if (Array.isArray(parsed)) {
+        inMemoryProducts = parsed;
+      }
+    }
+  } catch (e) {}
+}
+
+export function persistInMemoryProducts() {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem('hiwi_in_memory_products', JSON.stringify(inMemoryProducts));
+      localStorage.setItem('hiwi_deleted_products', JSON.stringify(Array.from(deletedProductIds)));
+    } catch (e) {}
+  }
+}
+
 let inMemoryCategories: Category[] = [...INITIAL_CATEGORIES];
 let inMemoryOrders: OrderInquiry[] = [];
 let inMemoryReviews: Record<string, Review[]> = {};
@@ -342,13 +370,16 @@ export async function updateSiteSettings(settings: Partial<SiteSettings>): Promi
  */
 export async function getProducts(): Promise<Product[]> {
   try {
+    const filteredInMemory = inMemoryProducts.filter((p) => !deletedProductIds.has(p.id));
     const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
 
     if (error || !data || data.length === 0) {
-      return inMemoryProducts;
+      return filteredInMemory;
     }
 
-    const fetched = data.map((item: any) => ({
+    const fetched = data
+      .filter((item: any) => !deletedProductIds.has(item.id))
+      .map((item: any) => ({
       id: item.id,
       name: item.name,
       slug: item.slug,
@@ -497,9 +528,9 @@ export async function createProduct(productData: Partial<Product>): Promise<{ su
     isSale: productData.isSale || false,
     inStock: productData.inStock !== undefined ? productData.inStock : true,
     badgeText: productData.badgeText,
-    image: productData.image || '/images/hero.jpg',
+    image: productData.image !== undefined ? productData.image : '',
     secondaryImage: productData.secondaryImage,
-    images: productData.images || [productData.image || '/images/hero.jpg'],
+    images: productData.images || (productData.image ? [productData.image] : []),
     description: productData.description || 'Authentic Ethiopian fashion garment.',
     sizes: productData.sizes || ['XS', 'S', 'M', 'L', 'XL'],
     colors: productData.colors || [{ name: 'White', hex: '#FFFFFF' }],
@@ -512,6 +543,7 @@ export async function createProduct(productData: Partial<Product>): Promise<{ su
 
   try {
     const payload: any = {
+      id: newProduct.id,
       name: newProduct.name,
       slug: newProduct.slug,
       category: newProduct.category,
@@ -578,6 +610,7 @@ export async function createProduct(productData: Partial<Product>): Promise<{ su
   }
 
   inMemoryProducts.unshift(newProduct);
+  persistInMemoryProducts();
 
   // Automatically broadcast new product post to Telegram Group @hiwifashion12
   try {
@@ -598,36 +631,44 @@ export async function updateProduct(id: string, productData: Partial<Product>): 
     await saveProductAttributeValues(id, productData.attributes);
   }
   try {
-    const updatePayload: any = {};
-    if (productData.name !== undefined) updatePayload.name = productData.name;
-    if (productData.category !== undefined) updatePayload.category = productData.category;
-    if (productData.price !== undefined) updatePayload.price = productData.price;
-    if (productData.originalPrice !== undefined) updatePayload.original_price = productData.originalPrice;
-    if (productData.description !== undefined) updatePayload.description = productData.description;
-    if (productData.badgeText !== undefined) updatePayload.badge_text = productData.badgeText;
-    if (productData.image !== undefined) updatePayload.image = productData.image;
-    if (productData.secondaryImage !== undefined) updatePayload.secondary_image = productData.secondaryImage;
-    if (productData.images !== undefined) {
-      updatePayload.images = productData.images;
-      if (!updatePayload.image && productData.images.length > 0) {
-        updatePayload.image = productData.images[0];
-      }
-    }
-    if (productData.sizes !== undefined) updatePayload.sizes = productData.sizes;
-    if (productData.colors !== undefined) updatePayload.colors = productData.colors;
-    if (productData.material !== undefined) updatePayload.material = productData.material;
-    if (productData.subcategory !== undefined) updatePayload.subcategory = productData.subcategory;
-    if (productData.occasion !== undefined) updatePayload.occasion = productData.occasion;
-    if (productData.fabricCare !== undefined) updatePayload.fabric_care = productData.fabricCare;
-    if (productData.deliveryInfo !== undefined) updatePayload.delivery_info = productData.deliveryInfo;
-    if (productData.isNew !== undefined) updatePayload.is_new = productData.isNew;
-    if (productData.isSale !== undefined) updatePayload.is_sale = productData.isSale;
-    if (productData.inStock !== undefined) updatePayload.in_stock = productData.inStock;
-    if (productData.stockQuantity !== undefined) updatePayload.stock_quantity = productData.stockQuantity;
+    const currentProd = inMemoryProducts.find((p) => p.id === id);
+    const merged: Partial<Product> = {
+      ...currentProd,
+      ...productData,
+      id,
+    };
+
+    const updatePayload: any = {
+      id: merged.id,
+      name: merged.name || 'Habesha Garment',
+      slug: merged.slug || (merged.name || 'product').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      category: merged.category || 'dresses',
+      price: Number(merged.price || 2500),
+      image: merged.image !== undefined ? merged.image : '',
+      description: merged.description || 'Authentic Ethiopian fashion garment.',
+    };
+
+    if (merged.originalPrice !== undefined) updatePayload.original_price = merged.originalPrice;
+    if (merged.rating !== undefined) updatePayload.rating = merged.rating;
+    if (merged.reviewsCount !== undefined) updatePayload.reviews_count = merged.reviewsCount;
+    if (merged.isNew !== undefined) updatePayload.is_new = merged.isNew;
+    if (merged.isSale !== undefined) updatePayload.is_sale = merged.isSale;
+    if (merged.inStock !== undefined) updatePayload.in_stock = merged.inStock;
+    if (merged.badgeText !== undefined) updatePayload.badge_text = merged.badgeText;
+    if (merged.secondaryImage !== undefined) updatePayload.secondary_image = merged.secondaryImage;
+    if (merged.images !== undefined) updatePayload.images = merged.images;
+    if (merged.sizes !== undefined) updatePayload.sizes = merged.sizes;
+    if (merged.colors !== undefined) updatePayload.colors = merged.colors;
+    if (merged.material !== undefined) updatePayload.material = merged.material;
+    if (merged.subcategory !== undefined) updatePayload.subcategory = merged.subcategory;
+    if (merged.occasion !== undefined) updatePayload.occasion = merged.occasion;
+    if (merged.fabricCare !== undefined) updatePayload.fabric_care = merged.fabricCare;
+    if (merged.deliveryInfo !== undefined) updatePayload.delivery_info = merged.deliveryInfo;
+    if (merged.stockQuantity !== undefined) updatePayload.stock_quantity = merged.stockQuantity;
 
     let attempts = 0;
     while (attempts < 5) {
-      let { error } = await supabase.from('products').update(updatePayload).eq('id', id);
+      let { error } = await supabase.from('products').upsert([updatePayload], { onConflict: 'id' });
       if (!error) break;
 
       if (error && (error.code === 'PGRST204' || error.message.includes('Could not find') || error.message.includes('column'))) {
@@ -661,14 +702,15 @@ export async function updateProduct(id: string, productData: Partial<Product>): 
   inMemoryProducts = inMemoryProducts.map((p) => {
     if (p.id === id) {
       const updatedP = { ...p, ...productData };
-      if (productData.image) updatedP.image = productData.image;
-      if (productData.images && productData.images.length > 0 && !productData.image) {
+      if (productData.image !== undefined) updatedP.image = productData.image;
+      if (productData.images && productData.images.length > 0 && productData.image === undefined) {
         updatedP.image = productData.images[0];
       }
       return updatedP;
     }
     return p;
   });
+  persistInMemoryProducts();
   const updated = inMemoryProducts.find((p) => p.id === id);
   return { success: true, data: updated };
 }
@@ -677,11 +719,13 @@ export async function updateProduct(id: string, productData: Partial<Product>): 
  * Delete a product
  */
 export async function deleteProduct(id: string): Promise<{ success: boolean }> {
+  deletedProductIds.add(id);
   try {
     await supabase.from('products').delete().eq('id', id);
   } catch (err) {}
   
   inMemoryProducts = inMemoryProducts.filter((p) => p.id !== id);
+  persistInMemoryProducts();
   return { success: true };
 }
 

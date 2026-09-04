@@ -52,7 +52,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     isNew: true,
     isSale: true,
     image: '/images/hero.jpg',
-    secondaryImage: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=1000',
     description:
       'Handcrafted from 100% organic Ethiopian cotton linen. Features intricate traditional border embroidery (Tibeb), wrap sash at the waist, and elegant side silhouette.',
     sizes: ['XS', 'S', 'M', 'L', 'XL'],
@@ -77,7 +76,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     isNew: true,
     isSale: false,
     image: '/images/blazer.jpg',
-    secondaryImage: 'https://images.unsplash.com/photo-1548624149-f1e14934fb57?auto=format&fit=crop&q=80&w=1000',
     description:
       'Structured minimalist suit jacket made from woven Ethiopian linen-wool fabric. Tailored for workwear or elevated evening events.',
     sizes: ['S', 'M', 'L', 'XL'],
@@ -101,7 +99,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     isNew: false,
     isSale: false,
     image: 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&q=80&w=1000',
-    secondaryImage: 'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?auto=format&fit=crop&q=80&w=1000',
     description:
       'Fluid silk-satin Habesha evening gown featuring delicate hand-embroidered gold trim, cowl neck design, and matching sheer Netela shawl.',
     sizes: ['XS', 'S', 'M', 'L'],
@@ -126,7 +123,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     isNew: true,
     isSale: false,
     image: 'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&q=80&w=1000',
-    secondaryImage: 'https://images.unsplash.com/photo-1502716119720-b23a93e5fe1b?auto=format&fit=crop&q=80&w=1000',
     description:
       'Soft breathable Ethiopian cotton fine-knit top designed with off-the-shoulder neckline. Light, stylish, and comfortable.',
     sizes: ['XS', 'S', 'M', 'L'],
@@ -151,7 +147,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     isNew: false,
     isSale: true,
     image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&q=80&w=1000',
-    secondaryImage: 'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?auto=format&fit=crop&q=80&w=1000',
     description:
       'Traditional Ethiopian handwoven cotton Netela scarf with gold and red woven borders (Tibeb). Light, elegant, and versatile.',
     sizes: ['One Size'],
@@ -175,7 +170,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     isNew: false,
     isSale: false,
     image: 'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?auto=format&fit=crop&q=80&w=1000',
-    secondaryImage: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&q=80&w=1000',
     description:
       'Handmade in Addis Ababa from 100% genuine Ethiopian leather. Durable, spacious, with zippered inner pouch and magnetic button.',
     sizes: ['One Size'],
@@ -199,7 +193,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     isNew: true,
     isSale: false,
     image: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?auto=format&fit=crop&q=80&w=1000',
-    secondaryImage: 'https://images.unsplash.com/photo-1535043934128-cf0b28d52f95?auto=format&fit=crop&q=80&w=1000',
     description:
       'Crafted with genuine Ethiopian leather, memory foam inner sole, and stylish ankle straps for comfort and elegance.',
     sizes: ['36', '37', '38', '39', '40', '41'],
@@ -223,7 +216,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     isNew: true,
     isSale: true,
     image: 'https://images.unsplash.com/photo-1585487000160-6ebcfceb0d03?auto=format&fit=crop&q=80&w=1000',
-    secondaryImage: 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&q=80&w=1000',
     description:
       'Short Habesha Kemis tunic top with delicate neck Tibeb embroidery. Pairs effortlessly with jeans or trousers.',
     sizes: ['S', 'M', 'L', 'XL'],

@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { Product, ColorOption } from '../types';
 import { useStore } from '../context/StoreContext';
-import { Heart, Send, Star, Eye, ShoppingBag } from 'lucide-react';
+import { Heart, Send, Star, Eye, ShoppingBag, Image as ImageIcon } from 'lucide-react';
 
 interface ProductCardProps {
   product: Product;
@@ -25,9 +25,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     ? `ETB ${product.originalPrice.toLocaleString('en-US')}`
     : null;
 
-  // Dynamic cover image resolution (ensures updated image is ALWAYS displayed)
-  const coverImage = product.image || (product.images && product.images.length > 0 ? product.images[0] : '/images/hero.jpg');
-  const secondaryImage = product.secondaryImage || (product.images && product.images.length > 1 ? product.images[1] : undefined);
+  // Dynamic cover image resolution
+  const coverImage = product.image || (product.images && product.images.length > 0 ? product.images[0] : '');
+  const secondaryImage = product.secondaryImage && product.secondaryImage !== coverImage ? product.secondaryImage : undefined;
 
   return (
     <div
@@ -41,13 +41,20 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
       {/* Image Container */}
       <div className="relative aspect-[3/4] w-full overflow-hidden bg-[#FAF8F5]">
         <Link href={`/product/${product.slug}`} className="block w-full h-full">
-          <img
-            src={coverImage}
-            alt={product.name}
-            className={`w-full h-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-108 ${
-              !isInStock ? 'grayscale opacity-75' : ''
-            }`}
-          />
+          {coverImage ? (
+            <img
+              src={coverImage}
+              alt={product.name}
+              className={`w-full h-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-108 ${
+                !isInStock ? 'grayscale opacity-75' : ''
+              }`}
+            />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center bg-gray-100 text-gray-400 p-4 text-center">
+              <ImageIcon className="w-10 h-10 mb-2 opacity-50" />
+              <span className="text-[10px] font-semibold uppercase tracking-wider">No Image</span>
+            </div>
+          )}
 
           {/* Secondary Hover Image */}
           {secondaryImage && (
