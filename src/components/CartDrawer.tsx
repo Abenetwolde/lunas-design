@@ -23,7 +23,10 @@ export const CartDrawer: React.FC = () => {
   if (!isCartOpen) return null;
 
   const totalAmount = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+  const baseUrl =
+    typeof window !== 'undefined' && window.location.origin && !window.location.origin.includes('localhost')
+      ? window.location.origin
+      : 'https://lunas-design.vercel.app';
 
   // Multi-item Telegram Message Generator in ETB
   const formattedCartMessage = `🛍️ *MULTI-ITEM ORDER CHECKOUT — HIWI FASHION*

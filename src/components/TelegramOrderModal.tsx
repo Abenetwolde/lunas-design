@@ -31,7 +31,10 @@ export const TelegramOrderModal: React.FC = () => {
   const unitPrice = product.price;
   const totalAmount = unitPrice * quantity;
 
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+  const baseUrl =
+    typeof window !== 'undefined' && window.location.origin && !window.location.origin.includes('localhost')
+      ? window.location.origin
+      : 'https://lunas-design.vercel.app';
   const productUrl = `${baseUrl}/product/${product.slug || product.id}`;
 
   // Clean Telegram Order Message Payload (No Emoji Clutter)

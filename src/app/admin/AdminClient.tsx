@@ -26,6 +26,7 @@ import {
   getSiteSettings,
   updateSiteSettings,
   isProductInCategory,
+  toValidUuid,
   supabase,
 } from '../../lib/supabase';
 import { postProductToTelegramGroup, testTelegramBroadcast } from '../../lib/telegramService';
@@ -602,8 +603,9 @@ export default function AdminClient({
 
   const handleDeleteProduct = async (id: string, name: string) => {
     if (confirm(`Delete product "${name}" permanently?`)) {
+      const dbUuid = toValidUuid(id);
+      setProducts((prev) => prev.filter((p) => p.id !== id && p.id !== dbUuid));
       await deleteProduct(id);
-      setProducts(products.filter((p) => p.id !== id));
       showToast(`Deleted product "${name}"`);
     }
   };

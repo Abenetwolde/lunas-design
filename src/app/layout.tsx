@@ -10,11 +10,10 @@ export const metadata: Metadata = {
   keywords: 'hiwi fashion, habesha dress, habesha kemis, ethiopian clothing, netela, etb, telegram order, nextjs, supabase',
   icons: {
     icon: [
-      { url: '/favicon.png', type: 'image/png' },
-      { url: '/logo.png', type: 'image/png' },
+      { url: '/images/hero.jpg', type: 'image/jpeg' },
     ],
-    shortcut: '/favicon.png',
-    apple: '/logo.png',
+    shortcut: '/images/hero.jpg',
+    apple: '/images/hero.jpg',
   },
 };
 
@@ -22,9 +21,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="h-full antialiased">
       <head>
-        <link rel="icon" href="/favicon.png" type="image/png" />
-        <link rel="shortcut icon" href="/favicon.png" type="image/png" />
-        <link rel="apple-touch-icon" href="/logo.png" />
+        <link rel="icon" href="/images/hero.jpg" type="image/jpeg" />
+        <link rel="shortcut icon" href="/images/hero.jpg" type="image/jpeg" />
+        <link rel="apple-touch-icon" href="/images/hero.jpg" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link

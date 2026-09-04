@@ -80,7 +80,10 @@ export async function postProductToTelegramGroup(
     return { success: false, error: 'Telegram bot token or group username missing' };
   }
 
-  const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://hiwi-fashion.vercel.app';
+  const siteUrl =
+    typeof window !== 'undefined' && window.location.origin && !window.location.origin.includes('localhost')
+      ? window.location.origin
+      : 'https://lunas-design.vercel.app';
   const slug = product.slug || product.name.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
   const productUrl = `${siteUrl}/product/${slug}`;
 

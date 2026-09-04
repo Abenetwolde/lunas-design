@@ -102,7 +102,10 @@ export default function ProductDetailClient({ product: initialProduct, relatedPr
     }
   };
 
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+  const baseUrl =
+    typeof window !== 'undefined' && window.location.origin && !window.location.origin.includes('localhost')
+      ? window.location.origin
+      : 'https://lunas-design.vercel.app';
   const fullImageUrl = activeImage.startsWith('http') ? activeImage : `${baseUrl}${activeImage}`;
 
   // Fetch real reviews

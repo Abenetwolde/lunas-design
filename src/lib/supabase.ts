@@ -775,10 +775,11 @@ export async function deleteProduct(id: string): Promise<{ success: boolean }> {
 
   try {
     const deletedArr = Array.from(deletedProductIds);
-    await supabase.from('site_settings').upsert({
-      id: 'default',
-      seo_keywords: JSON.stringify(deletedArr),
-    });
+    const { data: currentSettings } = await supabase.from('site_settings').select('*').eq('id', 'default').single();
+    const payload = currentSettings
+      ? { ...currentSettings, seo_keywords: JSON.stringify(deletedArr) }
+      : { id: 'default', seo_keywords: JSON.stringify(deletedArr) };
+    await supabase.from('site_settings').upsert(payload, { onConflict: 'id' });
   } catch (e) {}
 
   return { success: true };
