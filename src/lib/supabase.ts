@@ -380,43 +380,74 @@ export async function updateSiteSettings(settings: Partial<SiteSettings>): Promi
  */
 export async function getProducts(): Promise<Product[]> {
   try {
-    const filteredInMemory = inMemoryProducts.filter((p) => !deletedProductIds.has(p.id));
+    // 1. Fetch deleted product IDs from site_settings table in Supabase DB so deletions persist across Vercel SSR requests
+    try {
+      const { data: settingsData } = await supabase.from('site_settings').select('seo_keywords').eq('id', 'default').single();
+      if (settingsData?.seo_keywords && settingsData.seo_keywords.startsWith('[')) {
+        const parsed: string[] = JSON.parse(settingsData.seo_keywords);
+        parsed.forEach((id) => deletedProductIds.add(id));
+      }
+    } catch (e) {}
+
     const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
 
-    if (error || !data || data.length === 0) {
-      return filteredInMemory;
+    const fetchedMap = new Map<string, Product>();
+    if (!error && data && Array.isArray(data)) {
+      data.forEach((item: any) => {
+        if (!deletedProductIds.has(item.id)) {
+          const prod: Product = {
+            id: item.id,
+            name: item.name,
+            slug: item.slug,
+            category: item.category,
+            price: Number(item.price),
+            originalPrice: item.original_price ? Number(item.original_price) : undefined,
+            rating: Number(item.rating) || 0,
+            reviewsCount: Number(item.reviews_count || 0),
+            isNew: Boolean(item.is_new),
+            isSale: Boolean(item.is_sale),
+            inStock: item.in_stock !== undefined ? Boolean(item.in_stock) : true,
+            badgeText: item.badge_text || (item.is_sale ? 'SPECIAL OFFER' : item.is_new ? 'NEW ARRIVAL' : undefined),
+            image: item.image,
+            secondaryImage: item.secondary_image,
+            images: Array.isArray(item.images) && item.images.length > 0 ? item.images : [item.image, item.secondary_image].filter(Boolean),
+            description: item.description,
+            sizes: Array.isArray(item.sizes) ? item.sizes : ['XS', 'S', 'M', 'L', 'XL'],
+            colors: Array.isArray(item.colors) ? item.colors : [{ name: 'Default', hex: '#1A1A1A' }],
+            material: item.material || 'Ethiopian Cotton',
+            subcategory: item.subcategory || undefined,
+            occasion: item.occasion || 'Casual',
+            fabricCare: item.fabric_care || 'Hand wash cold or dry clean recommended.',
+            deliveryInfo: item.delivery_info || 'Fast delivery available in Addis Ababa within 24-48 hours.',
+            stockQuantity: item.stock_quantity !== undefined ? item.stock_quantity : 15,
+            attributes: item.attributes || undefined,
+            created_at: item.created_at,
+          };
+          fetchedMap.set(item.id, prod);
+        }
+      });
     }
 
-    const fetched = data
-      .filter((item: any) => !deletedProductIds.has(item.id))
-      .map((item: any) => ({
-      id: item.id,
-      name: item.name,
-      slug: item.slug,
-      category: item.category,
-      price: Number(item.price),
-      originalPrice: item.original_price ? Number(item.original_price) : undefined,
-      rating: Number(item.rating) || 0,
-      reviewsCount: Number(item.reviews_count || 0),
-      isNew: Boolean(item.is_new),
-      isSale: Boolean(item.is_sale),
-      inStock: item.in_stock !== undefined ? Boolean(item.in_stock) : true,
-      badgeText: item.badge_text || (item.is_sale ? 'SPECIAL OFFER' : item.is_new ? 'NEW ARRIVAL' : undefined),
-      image: item.image,
-      secondaryImage: item.secondary_image,
-      images: Array.isArray(item.images) && item.images.length > 0 ? item.images : [item.image, item.secondary_image].filter(Boolean),
-      description: item.description,
-      sizes: Array.isArray(item.sizes) ? item.sizes : ['XS', 'S', 'M', 'L', 'XL'],
-      colors: Array.isArray(item.colors) ? item.colors : [{ name: 'Default', hex: '#1A1A1A' }],
-      material: item.material || 'Ethiopian Cotton',
-      subcategory: item.subcategory || undefined,
-      occasion: item.occasion || 'Casual',
-      fabricCare: item.fabric_care || 'Hand wash cold or dry clean recommended.',
-      deliveryInfo: item.delivery_info || 'Fast delivery available in Addis Ababa within 24-48 hours.',
-      stockQuantity: item.stock_quantity !== undefined ? item.stock_quantity : 15,
-      attributes: item.attributes || undefined,
-      created_at: item.created_at,
-    }));
+    const combined: Product[] = [];
+    const addedIds = new Set<string>();
+
+    fetchedMap.forEach((p, id) => {
+      if (!deletedProductIds.has(id)) {
+        combined.push(p);
+        addedIds.add(id);
+      }
+    });
+
+    for (const p of inMemoryProducts) {
+      const dbUuid = toValidUuid(p.id);
+      if (!deletedProductIds.has(p.id) && !deletedProductIds.has(dbUuid) && !addedIds.has(p.id) && !addedIds.has(dbUuid)) {
+        combined.push(p);
+        addedIds.add(p.id);
+        addedIds.add(dbUuid);
+      }
+    }
+
+    const fetched = combined;
 
     // --- REAL RATING OVERLAY ---
     // Ratings & review counts must reflect actual customer reviews from the
@@ -733,13 +764,23 @@ export async function deleteProduct(id: string): Promise<{ success: boolean }> {
   deletedProductIds.add(id);
   const dbUuid = toValidUuid(id);
   deletedProductIds.add(dbUuid);
+
+  inMemoryProducts = inMemoryProducts.filter((p) => p.id !== id && p.id !== dbUuid);
+  persistInMemoryProducts();
+
   try {
     await supabase.from('products').delete().eq('id', dbUuid);
     await supabase.from('products').delete().eq('id', id);
   } catch (err) {}
-  
-  inMemoryProducts = inMemoryProducts.filter((p) => p.id !== id && p.id !== dbUuid);
-  persistInMemoryProducts();
+
+  try {
+    const deletedArr = Array.from(deletedProductIds);
+    await supabase.from('site_settings').upsert({
+      id: 'default',
+      seo_keywords: JSON.stringify(deletedArr),
+    });
+  } catch (e) {}
+
   return { success: true };
 }
 
